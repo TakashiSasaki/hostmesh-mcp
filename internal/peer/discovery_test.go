@@ -139,10 +139,18 @@ func TestMesh100(t *testing.T) {
 	if os.Getenv("HOST_STATUS_SCALE_TEST") != "1" {
 		t.Skip("set HOST_STATUS_SCALE_TEST=1 for the 100-node test")
 	}
+	t.Run("full-mesh", func(t *testing.T) { runScale(t, false) })
+	t.Run("single-relay", func(t *testing.T) { runScale(t, true) })
+}
+
+func runScale(t *testing.T, star bool) {
 	const count = 100
 	listeners := make(map[string]*bufconn.Listener)
 	endpoints := make([]string, count)
 	for i := range count {
+		if star && i > 0 {
+			break
+		}
 		endpoints[i] = fmt.Sprintf("127.0.0.1:%d", 15000+i)
 		listener := bufconn.Listen(8192)
 		listeners[endpoints[i]] = listener
@@ -157,29 +165,88 @@ func TestMesh100(t *testing.T) {
 	started := time.Now()
 	peers := make([]*Peer, count)
 	for i := range count {
-		d := newMemoryDirectory(i, endpoints[i], false)
+		d := newMemoryDirectory(i, endpoints[i], star && i == 0)
 		cfg := Config{}
 		if i != 0 {
 			cfg.Seeds = []string{endpoints[0]}
+			if star {
+				cfg.TrustedRelays = []string{peers[0].dir.Self().ID}
+			}
 		}
-		peers[i] = startTest(t, cfg, listeners[endpoints[i]], d, uint64(i+1), dial)
+		var listener net.Listener
+		if endpoints[i] != "" {
+			listener = listeners[endpoints[i]]
+		}
+		peers[i] = startTest(t, cfg, listener, d, uint64(i+1), dial)
 	}
-	waitFor(t, 90*time.Second, "100-node directory and full mesh", func() bool {
+	waitFor(t, 90*time.Second, "100-node directory and topology", func() bool {
 		for i, p := range peers {
 			if len(p.dir.Nodes()) != count {
 				return false
 			}
-			for _, q := range peers[:i] {
-				if !hasSharedLink(p, q) {
-					return false
+			if star && i > 0 && !hasSharedLink(p, peers[0]) {
+				return false
+			}
+			if !star {
+				for _, q := range peers[:i] {
+					if !hasSharedLink(p, q) {
+						return false
+					}
 				}
 			}
 		}
 		return true
 	})
-	r := mcpRead(t, peers[count-1], peers[51].dir.Self().ID)
-	if r.Route.Kind != "direct" || r.Sections.Memory == nil || r.Sections.Memory.TotalBytes != 52 {
+	target := peers[51].dir.Self().ID
+	source := peers[count-1]
+	route, expectedLinks := "direct", count*(count-1)/2
+	if star {
+		route, expectedLinks = "relay", count-1
+		waitFor(t, 5*time.Second, "scale relay reachability", func() bool {
+			source.mu.RLock()
+			defer source.mu.RUnlock()
+			return source.relayForLocked(target) != nil
+		})
+	}
+	sum := 0
+	for _, p := range peers {
+		p.mu.RLock()
+		for _, link := range p.links {
+			if live(link) {
+				sum++
+			}
+		}
+		p.mu.RUnlock()
+	}
+	if sum != 2*expectedLinks {
+		t.Fatalf("connected ends = %d, expected %d", sum, 2*expectedLinks)
+	}
+	if r := mcpRead(t, source, target); r.Route.Kind != route || r.Sections.Memory == nil || r.Sections.Memory.TotalBytes != 52 {
 		t.Fatalf("bad scale result %+v", r)
 	}
-	t.Logf("%d nodes and %d links converged in %s", count, count*(count-1)/2, time.Since(started))
+	t.Logf("%d nodes and %d links converged in %s", count, expectedLinks, time.Since(started))
+	samples := make([]time.Duration, count)
+	var queries sync.WaitGroup
+	slots := make(chan struct{}, 8)
+	for i, src := range peers {
+		slots <- struct{}{}
+		queries.Go(func() {
+			defer func() { <-slots }()
+			j := (i + 1) % count
+			q := status.Query{Target: &status.Target{ID: peers[j].dir.Self().ID}, Sections: []string{"memory"}}
+			begin := time.Now()
+			r, err := src.Get(t.Context(), q)
+			samples[i] = time.Since(begin)
+			wantRoute := "direct"
+			if star && i != 0 && j != 0 {
+				wantRoute = "relay"
+			}
+			if err != nil || r.Node.ID != q.Target.ID || r.Route.Kind != wantRoute || r.Sections.Memory == nil || r.Sections.Memory.TotalBytes != uint64(j+1) {
+				t.Errorf("scale lookup %d -> %d: %+v, %v", i, j, r, err)
+			}
+		})
+	}
+	queries.Wait()
+	slices.Sort(samples)
+	t.Logf("100 lookups, concurrency 8: p50=%s p95=%s p99=%s", samples[49], samples[94], samples[98])
 }

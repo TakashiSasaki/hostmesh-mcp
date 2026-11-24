@@ -32,6 +32,9 @@ type link struct {
 	initiator string
 	remote    string
 	tx        chan outgoingFrame
+	// Reachability is protected by owner.mu.
+	reachable  map[string]bool
+	reportedAt time.Time
 
 	mu       sync.Mutex
 	pending  map[string]chan *wire.StatusResponse
@@ -64,7 +67,8 @@ func (p *Peer) connect(endpoint, expectedID, seed string, ready func()) bool {
 }
 
 func hello(self status.Node, id string) *wire.Frame {
-	return &wire.Frame{Body: &wire.Frame_Hello{Hello: &wire.Hello{Version: 1, LinkId: id, Node: nodeToWire(self)}}}
+	sections, _ := status.ValidateSections(nil)
+	return &wire.Frame{Body: &wire.Frame_Hello{Hello: &wire.Hello{Version: 1, LinkId: id, Node: nodeToWire(self), Sections: sections}}}
 }
 
 func (p *Peer) runStream(s stream, id, expectedID, seed string, established func()) bool {
@@ -179,6 +183,7 @@ func (p *Peer) unregister(l *link) {
 	defer p.mu.Unlock()
 	if p.links[l.remote] == l {
 		delete(p.links, l.remote)
+		p.markDirty()
 	}
 }
 
@@ -221,6 +226,8 @@ func (l *link) receive(frame *wire.Frame) bool {
 	switch b := frame.Body.(type) {
 	case *wire.Frame_Heartbeat:
 		return true
+	case *wire.Frame_Reachability:
+		return l.receiveReachability(b.Reachability)
 	case *wire.Frame_Inventory:
 		return l.receiveInventory(b.Inventory)
 	case *wire.Frame_RecordRequest:
@@ -260,7 +267,7 @@ func (l *link) receive(frame *wire.Frame) bool {
 	}
 }
 
-func (l *link) query(ctx context.Context, target string, sections []string) (status.Result, error) {
+func (l *link) query(ctx context.Context, target string, sections []string, origin string) (status.Result, error) {
 	id := uuid.NewString()
 	reply := make(chan *wire.StatusResponse, 1)
 	l.mu.Lock()
@@ -272,7 +279,7 @@ func (l *link) query(ctx context.Context, target string, sections []string) (sta
 	l.mu.Unlock()
 	defer func() { l.mu.Lock(); delete(l.pending, id); l.mu.Unlock() }()
 	deadline, _ := ctx.Deadline()
-	f := &wire.Frame{Body: &wire.Frame_StatusRequest{StatusRequest: &wire.StatusRequest{Id: id, TargetId: target, Sections: sections}}}
+	f := &wire.Frame{Body: &wire.Frame_StatusRequest{StatusRequest: &wire.StatusRequest{Id: id, TargetId: target, Sections: sections, OriginId: origin}}}
 	if !l.enqueue(outgoingFrame{frame: f, deadline: deadline}) {
 		return status.Result{}, status.Error("UNREACHABLE", "peer link closed")
 	}
@@ -295,7 +302,7 @@ func (l *link) query(ctx context.Context, target string, sections []string) (sta
 }
 
 func (l *link) startRequest(req *wire.StatusRequest) bool {
-	if req == nil || !validID(req.Id) || !validID(req.TargetId) || req.TimeoutMs == 0 {
+	if req == nil || !validID(req.Id) || !validID(req.TargetId) || req.TimeoutMs == 0 || req.OriginId != "" && !validID(req.OriginId) {
 		return false
 	}
 	l.mu.Lock()
@@ -318,22 +325,12 @@ func (l *link) startRequest(req *wire.StatusRequest) bool {
 			delete(l.incoming, req.Id)
 			l.mu.Unlock()
 		}()
+		start := time.Now()
 		r, err := l.owner.serveRequest(ctx, l.remote, req)
-		l.owner.audit(l.remote, req.TargetId, req.Sections, r, err)
+		l.owner.audit(l.remote, req.TargetId, req.Sections, r, err, time.Since(start))
 		l.reply(req.Id, r, err)
 	}()
 	return true
-}
-
-func (p *Peer) serveRequest(ctx context.Context, source string, req *wire.StatusRequest) (status.Result, error) {
-	if p.denied(source) || req.TargetId != p.dir.Self().ID {
-		return status.Result{}, status.Error("FORBIDDEN", "request target is not available on this link")
-	}
-	sections, err := status.ValidateSections(req.Sections)
-	if err != nil {
-		return status.Result{}, err
-	}
-	return p.collectLocal(ctx, sections)
 }
 
 func (l *link) reply(id string, r status.Result, err error) {

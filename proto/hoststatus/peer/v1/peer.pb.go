@@ -33,6 +33,7 @@ type Frame struct {
 	//	*Frame_Inventory
 	//	*Frame_RecordRequest
 	//	*Frame_Records
+	//	*Frame_Reachability
 	Body          isFrame_Body `protobuf_oneof:"body"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -147,6 +148,15 @@ func (x *Frame) GetRecords() *Records {
 	return nil
 }
 
+func (x *Frame) GetReachability() *Reachability {
+	if x != nil {
+		if x, ok := x.Body.(*Frame_Reachability); ok {
+			return x.Reachability
+		}
+	}
+	return nil
+}
+
 type isFrame_Body interface {
 	isFrame_Body()
 }
@@ -183,6 +193,10 @@ type Frame_Records struct {
 	Records *Records `protobuf:"bytes,8,opt,name=records,proto3,oneof"`
 }
 
+type Frame_Reachability struct {
+	Reachability *Reachability `protobuf:"bytes,9,opt,name=reachability,proto3,oneof"`
+}
+
 func (*Frame_Hello) isFrame_Body() {}
 
 func (*Frame_Heartbeat) isFrame_Body() {}
@@ -199,11 +213,14 @@ func (*Frame_RecordRequest) isFrame_Body() {}
 
 func (*Frame_Records) isFrame_Body() {}
 
+func (*Frame_Reachability) isFrame_Body() {}
+
 type Hello struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Version       uint32                 `protobuf:"varint,1,opt,name=version,proto3" json:"version,omitempty"`
 	LinkId        string                 `protobuf:"bytes,2,opt,name=link_id,json=linkId,proto3" json:"link_id,omitempty"`
 	Node          *NodeRecord            `protobuf:"bytes,3,opt,name=node,proto3" json:"node,omitempty"`
+	Sections      []string               `protobuf:"bytes,4,rep,name=sections,proto3" json:"sections,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -255,6 +272,13 @@ func (x *Hello) GetLinkId() string {
 func (x *Hello) GetNode() *NodeRecord {
 	if x != nil {
 		return x.Node
+	}
+	return nil
+}
+
+func (x *Hello) GetSections() []string {
+	if x != nil {
+		return x.Sections
 	}
 	return nil
 }
@@ -388,11 +412,13 @@ func (*Heartbeat) Descriptor() ([]byte, []int) {
 }
 
 type StatusRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	TargetId      string                 `protobuf:"bytes,2,opt,name=target_id,json=targetId,proto3" json:"target_id,omitempty"`
-	Sections      []string               `protobuf:"bytes,3,rep,name=sections,proto3" json:"sections,omitempty"`
-	TimeoutMs     uint32                 `protobuf:"varint,4,opt,name=timeout_ms,json=timeoutMs,proto3" json:"timeout_ms,omitempty"`
+	state     protoimpl.MessageState `protogen:"open.v1"`
+	Id        string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	TargetId  string                 `protobuf:"bytes,2,opt,name=target_id,json=targetId,proto3" json:"target_id,omitempty"`
+	Sections  []string               `protobuf:"bytes,3,rep,name=sections,proto3" json:"sections,omitempty"`
+	TimeoutMs uint32                 `protobuf:"varint,4,opt,name=timeout_ms,json=timeoutMs,proto3" json:"timeout_ms,omitempty"`
+	// Set by the single relay, using the identity of its incoming link.
+	OriginId      string `protobuf:"bytes,5,opt,name=origin_id,json=originId,proto3" json:"origin_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -453,6 +479,13 @@ func (x *StatusRequest) GetTimeoutMs() uint32 {
 		return x.TimeoutMs
 	}
 	return 0
+}
+
+func (x *StatusRequest) GetOriginId() string {
+	if x != nil {
+		return x.OriginId
+	}
+	return ""
 }
 
 type StatusResponse struct {
@@ -760,11 +793,55 @@ func (x *Records) GetNodes() []*NodeRecord {
 	return nil
 }
 
+type Reachability struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ConnectedIds  []string               `protobuf:"bytes,1,rep,name=connected_ids,json=connectedIds,proto3" json:"connected_ids,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Reachability) Reset() {
+	*x = Reachability{}
+	mi := &file_proto_hoststatus_peer_v1_peer_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Reachability) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Reachability) ProtoMessage() {}
+
+func (x *Reachability) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_hoststatus_peer_v1_peer_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Reachability.ProtoReflect.Descriptor instead.
+func (*Reachability) Descriptor() ([]byte, []int) {
+	return file_proto_hoststatus_peer_v1_peer_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *Reachability) GetConnectedIds() []string {
+	if x != nil {
+		return x.ConnectedIds
+	}
+	return nil
+}
+
 var File_proto_hoststatus_peer_v1_peer_proto protoreflect.FileDescriptor
 
 const file_proto_hoststatus_peer_v1_peer_proto_rawDesc = "" +
 	"\n" +
-	"#proto/hoststatus/peer/v1/peer.proto\x12\x12hoststatus.peer.v1\"\x96\x04\n" +
+	"#proto/hoststatus/peer/v1/peer.proto\x12\x12hoststatus.peer.v1\"\xde\x04\n" +
 	"\x05Frame\x121\n" +
 	"\x05hello\x18\x01 \x01(\v2\x19.hoststatus.peer.v1.HelloH\x00R\x05hello\x12=\n" +
 	"\theartbeat\x18\x02 \x01(\v2\x1d.hoststatus.peer.v1.HeartbeatH\x00R\theartbeat\x12J\n" +
@@ -773,12 +850,14 @@ const file_proto_hoststatus_peer_v1_peer_proto_rawDesc = "" +
 	"\x06cancel\x18\x05 \x01(\v2\x1a.hoststatus.peer.v1.CancelH\x00R\x06cancel\x12=\n" +
 	"\tinventory\x18\x06 \x01(\v2\x1d.hoststatus.peer.v1.InventoryH\x00R\tinventory\x12J\n" +
 	"\x0erecord_request\x18\a \x01(\v2!.hoststatus.peer.v1.RecordRequestH\x00R\rrecordRequest\x127\n" +
-	"\arecords\x18\b \x01(\v2\x1b.hoststatus.peer.v1.RecordsH\x00R\arecordsB\x06\n" +
-	"\x04body\"n\n" +
+	"\arecords\x18\b \x01(\v2\x1b.hoststatus.peer.v1.RecordsH\x00R\arecords\x12F\n" +
+	"\freachability\x18\t \x01(\v2 .hoststatus.peer.v1.ReachabilityH\x00R\freachabilityB\x06\n" +
+	"\x04body\"\x8a\x01\n" +
 	"\x05Hello\x12\x18\n" +
 	"\aversion\x18\x01 \x01(\rR\aversion\x12\x17\n" +
 	"\alink_id\x18\x02 \x01(\tR\x06linkId\x122\n" +
-	"\x04node\x18\x03 \x01(\v2\x1e.hoststatus.peer.v1.NodeRecordR\x04node\"\xb6\x01\n" +
+	"\x04node\x18\x03 \x01(\v2\x1e.hoststatus.peer.v1.NodeRecordR\x04node\x12\x1a\n" +
+	"\bsections\x18\x04 \x03(\tR\bsections\"\xb6\x01\n" +
 	"\n" +
 	"NodeRecord\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1a\n" +
@@ -788,13 +867,14 @@ const file_proto_hoststatus_peer_v1_peer_proto_rawDesc = "" +
 	"\tendpoints\x18\x05 \x03(\tR\tendpoints\x12\x14\n" +
 	"\x05relay\x18\x06 \x01(\bR\x05relay\x12\x1a\n" +
 	"\brevision\x18\a \x01(\x04R\brevision\"\v\n" +
-	"\tHeartbeat\"w\n" +
+	"\tHeartbeat\"\x94\x01\n" +
 	"\rStatusRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1b\n" +
 	"\ttarget_id\x18\x02 \x01(\tR\btargetId\x12\x1a\n" +
 	"\bsections\x18\x03 \x03(\tR\bsections\x12\x1d\n" +
 	"\n" +
-	"timeout_ms\x18\x04 \x01(\rR\ttimeoutMs\"\x85\x01\n" +
+	"timeout_ms\x18\x04 \x01(\rR\ttimeoutMs\x12\x1b\n" +
+	"\torigin_id\x18\x05 \x01(\tR\boriginId\"\x85\x01\n" +
 	"\x0eStatusResponse\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1f\n" +
 	"\vresult_json\x18\x02 \x01(\fR\n" +
@@ -813,7 +893,9 @@ const file_proto_hoststatus_peer_v1_peer_proto_rawDesc = "" +
 	"\rRecordRequest\x12\x10\n" +
 	"\x03ids\x18\x01 \x03(\tR\x03ids\"?\n" +
 	"\aRecords\x124\n" +
-	"\x05nodes\x18\x01 \x03(\v2\x1e.hoststatus.peer.v1.NodeRecordR\x05nodes2K\n" +
+	"\x05nodes\x18\x01 \x03(\v2\x1e.hoststatus.peer.v1.NodeRecordR\x05nodes\"3\n" +
+	"\fReachability\x12#\n" +
+	"\rconnected_ids\x18\x01 \x03(\tR\fconnectedIds2K\n" +
 	"\aPeering\x12@\n" +
 	"\x04Link\x12\x19.hoststatus.peer.v1.Frame\x1a\x19.hoststatus.peer.v1.Frame(\x010\x01BJZHgithub.com/TakashiSasaki/host-status-mcp/proto/hoststatus/peer/v1;peerv1b\x06proto3"
 
@@ -829,7 +911,7 @@ func file_proto_hoststatus_peer_v1_peer_proto_rawDescGZIP() []byte {
 	return file_proto_hoststatus_peer_v1_peer_proto_rawDescData
 }
 
-var file_proto_hoststatus_peer_v1_peer_proto_msgTypes = make([]protoimpl.MessageInfo, 11)
+var file_proto_hoststatus_peer_v1_peer_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
 var file_proto_hoststatus_peer_v1_peer_proto_goTypes = []any{
 	(*Frame)(nil),          // 0: hoststatus.peer.v1.Frame
 	(*Hello)(nil),          // 1: hoststatus.peer.v1.Hello
@@ -842,6 +924,7 @@ var file_proto_hoststatus_peer_v1_peer_proto_goTypes = []any{
 	(*Inventory)(nil),      // 8: hoststatus.peer.v1.Inventory
 	(*RecordRequest)(nil),  // 9: hoststatus.peer.v1.RecordRequest
 	(*Records)(nil),        // 10: hoststatus.peer.v1.Records
+	(*Reachability)(nil),   // 11: hoststatus.peer.v1.Reachability
 }
 var file_proto_hoststatus_peer_v1_peer_proto_depIdxs = []int32{
 	1,  // 0: hoststatus.peer.v1.Frame.hello:type_name -> hoststatus.peer.v1.Hello
@@ -852,16 +935,17 @@ var file_proto_hoststatus_peer_v1_peer_proto_depIdxs = []int32{
 	8,  // 5: hoststatus.peer.v1.Frame.inventory:type_name -> hoststatus.peer.v1.Inventory
 	9,  // 6: hoststatus.peer.v1.Frame.record_request:type_name -> hoststatus.peer.v1.RecordRequest
 	10, // 7: hoststatus.peer.v1.Frame.records:type_name -> hoststatus.peer.v1.Records
-	2,  // 8: hoststatus.peer.v1.Hello.node:type_name -> hoststatus.peer.v1.NodeRecord
-	7,  // 9: hoststatus.peer.v1.Inventory.versions:type_name -> hoststatus.peer.v1.RecordVersion
-	2,  // 10: hoststatus.peer.v1.Records.nodes:type_name -> hoststatus.peer.v1.NodeRecord
-	0,  // 11: hoststatus.peer.v1.Peering.Link:input_type -> hoststatus.peer.v1.Frame
-	0,  // 12: hoststatus.peer.v1.Peering.Link:output_type -> hoststatus.peer.v1.Frame
-	12, // [12:13] is the sub-list for method output_type
-	11, // [11:12] is the sub-list for method input_type
-	11, // [11:11] is the sub-list for extension type_name
-	11, // [11:11] is the sub-list for extension extendee
-	0,  // [0:11] is the sub-list for field type_name
+	11, // 8: hoststatus.peer.v1.Frame.reachability:type_name -> hoststatus.peer.v1.Reachability
+	2,  // 9: hoststatus.peer.v1.Hello.node:type_name -> hoststatus.peer.v1.NodeRecord
+	7,  // 10: hoststatus.peer.v1.Inventory.versions:type_name -> hoststatus.peer.v1.RecordVersion
+	2,  // 11: hoststatus.peer.v1.Records.nodes:type_name -> hoststatus.peer.v1.NodeRecord
+	0,  // 12: hoststatus.peer.v1.Peering.Link:input_type -> hoststatus.peer.v1.Frame
+	0,  // 13: hoststatus.peer.v1.Peering.Link:output_type -> hoststatus.peer.v1.Frame
+	13, // [13:14] is the sub-list for method output_type
+	12, // [12:13] is the sub-list for method input_type
+	12, // [12:12] is the sub-list for extension type_name
+	12, // [12:12] is the sub-list for extension extendee
+	0,  // [0:12] is the sub-list for field type_name
 }
 
 func init() { file_proto_hoststatus_peer_v1_peer_proto_init() }
@@ -878,6 +962,7 @@ func file_proto_hoststatus_peer_v1_peer_proto_init() {
 		(*Frame_Inventory)(nil),
 		(*Frame_RecordRequest)(nil),
 		(*Frame_Records)(nil),
+		(*Frame_Reachability)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -885,7 +970,7 @@ func file_proto_hoststatus_peer_v1_peer_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_hoststatus_peer_v1_peer_proto_rawDesc), len(file_proto_hoststatus_peer_v1_peer_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   11,
+			NumMessages:   12,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

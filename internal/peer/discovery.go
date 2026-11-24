@@ -53,7 +53,7 @@ func (p *Peer) manage() {
 		case <-tick.C:
 			select {
 			case <-p.dirty:
-				p.broadcastInventory()
+				p.broadcastState()
 			default:
 			}
 			if active < maxConcurrentDials {
@@ -76,7 +76,7 @@ func (p *Peer) manage() {
 					p.log.Error("refresh local node", "err", err)
 				}
 			}
-			p.broadcastInventory()
+			p.broadcastState()
 		}
 	}
 }
@@ -169,7 +169,8 @@ func nodeHash(n status.Node) []byte {
 	return h[:]
 }
 
-func (p *Peer) broadcastInventory() {
+func (p *Peer) broadcastState() {
+	p.broadcastReachability()
 	inventory := &wire.Inventory{}
 	for _, n := range p.dir.Nodes() {
 		if !p.denied(n.ID) {

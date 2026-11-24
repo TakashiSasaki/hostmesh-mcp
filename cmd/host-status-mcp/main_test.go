@@ -4,8 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"os"
-	"os/exec"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -31,13 +31,16 @@ func TestStdio(t *testing.T) {
 	defer cancel()
 	var previous string
 	for range 2 {
-		cmd := exec.CommandContext(ctx, os.Args[0], "-test.run=^TestEntrypoint$", "--", "stdio", "-state-dir", dir)
+		cmd := appCommand(ctx, "stdio", "-state-dir", dir)
 		client := mcp.NewClient(&mcp.Implementation{Name: "test", Version: "1"}, nil)
 		session, err := client.Connect(ctx, &mcp.CommandTransport{Command: cmd}, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
 		defer session.Close()
+		if version := session.InitializeResult().ServerInfo.Version; version != strings.TrimSpace(versionFile) {
+			t.Fatalf("server advertised version %q", version)
+		}
 		tools, err := session.ListTools(ctx, nil)
 		if err != nil || len(tools.Tools) != 2 {
 			t.Fatalf("tool list = %v, err = %v", tools, err)

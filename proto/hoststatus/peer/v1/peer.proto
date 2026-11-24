@@ -16,6 +16,7 @@ message Frame {
     Inventory inventory = 6;
     RecordRequest record_request = 7;
     Records records = 8;
+    Reachability reachability = 9;
   }
 }
 
@@ -23,6 +24,7 @@ message Hello {
   uint32 version = 1;
   string link_id = 2;
   NodeRecord node = 3;
+  repeated string sections = 4;
 }
 
 message NodeRecord {
@@ -42,6 +44,8 @@ message StatusRequest {
   string target_id = 2;
   repeated string sections = 3;
   uint32 timeout_ms = 4;
+  // Set by the single relay, using the identity of its incoming link.
+  string origin_id = 5;
 }
 
 message StatusResponse {
@@ -72,4 +76,8 @@ message RecordRequest {
 
 message Records {
   repeated NodeRecord nodes = 1;
+}
+
+message Reachability {
+  repeated string connected_ids = 1;
 }

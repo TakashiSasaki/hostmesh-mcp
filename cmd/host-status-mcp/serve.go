@@ -34,6 +34,8 @@ type peerConfig struct {
 	Advertise      []string `json:"advertise"`
 	Seeds          []string `json:"seeds"`
 	ShareAddresses *bool    `json:"share_addresses"`
+	Relay          bool     `json:"relay"`
+	TrustedRelays  []string `json:"trusted_relays"`
 	DenyNodes      []string `json:"deny_nodes"`
 }
 
@@ -64,7 +66,7 @@ func readConfig(path string) (config, error) {
 	}
 	switch c.Peer.Security {
 	case "":
-		if c.Peer.Listen != "" || len(c.Peer.Seeds) != 0 || len(c.Peer.Advertise) != 0 {
+		if c.Peer.Listen != "" || len(c.Peer.Seeds) != 0 || len(c.Peer.Advertise) != 0 || c.Peer.Relay || len(c.Peer.TrustedRelays) != 0 {
 			return c, fmt.Errorf("configure peer.security as plaintext to enable peering")
 		}
 	case "plaintext":
@@ -82,7 +84,7 @@ func readConfig(path string) (config, error) {
 			return c, fmt.Errorf("invalid peer endpoint %q", e)
 		}
 	}
-	for _, id := range c.Peer.DenyNodes {
+	for _, id := range slices.Concat(c.Peer.DenyNodes, c.Peer.TrustedRelays) {
 		u, err := uuid.Parse(id)
 		if err != nil || u.Version() != 4 || id != u.String() {
 			return c, fmt.Errorf("invalid node ID %q", id)
@@ -105,7 +107,7 @@ func serve(ctx context.Context, version string, c config) error {
 		}
 	}
 	readNode := func() (status.Node, error) {
-		info, err := state.LocalNode(c.Peer.Advertise, false)
+		info, err := state.LocalNode(c.Peer.Advertise, c.Peer.Relay)
 		if c.Peer.ShareAddresses != nil && !*c.Peer.ShareAddresses {
 			info.Addresses = []string{}
 		}
@@ -139,7 +141,7 @@ func serve(ctx context.Context, version string, c config) error {
 		}
 		defer peerListener.Close()
 	}
-	p := peer.Start(ctx, peer.Config{Seeds: c.Peer.Seeds, DenyNodes: c.Peer.DenyNodes, Refresh: func() (bool, error) {
+	p := peer.Start(ctx, peer.Config{Seeds: c.Peer.Seeds, DenyNodes: c.Peer.DenyNodes, TrustedRelays: c.Peer.TrustedRelays, Refresh: func() (bool, error) {
 		info, err := readNode()
 		if err != nil {
 			return false, err

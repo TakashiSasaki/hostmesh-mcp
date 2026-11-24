@@ -37,23 +37,25 @@ type Directory interface {
 }
 
 type Config struct {
-	Seeds     []string
-	DenyNodes []string
-	Refresh   func() (bool, error)
+	Seeds         []string
+	DenyNodes     []string
+	TrustedRelays []string
+	Refresh       func() (bool, error)
 }
 
 type Peer struct {
 	wire.UnimplementedPeeringServer
-	ctx     context.Context
-	cancel  context.CancelFunc
-	server  *grpc.Server
-	wg      sync.WaitGroup
-	log     *slog.Logger
-	dir     Directory
-	collect status.Collector
-	config  Config
-	dial    func(context.Context, string) (net.Conn, error)
-	jobs    chan struct{}
+	ctx       context.Context
+	cancel    context.CancelFunc
+	server    *grpc.Server
+	wg        sync.WaitGroup
+	log       *slog.Logger
+	dir       Directory
+	collect   status.Collector
+	config    Config
+	dial      func(context.Context, string) (net.Conn, error)
+	jobs      chan struct{}
+	relayJobs chan struct{}
 
 	mu      sync.RWMutex
 	links   map[string]*link
@@ -75,7 +77,7 @@ func Start(ctx context.Context, cfg Config, listener net.Listener, dir Directory
 	}
 	p := &Peer{
 		ctx: ctx, cancel: cancel, dir: dir, collect: collect, config: cfg, dial: dial, log: logger,
-		jobs: make(chan struct{}, maxRequests), links: make(map[string]*link),
+		jobs: make(chan struct{}, maxRequests), relayJobs: make(chan struct{}, maxRequests), links: make(map[string]*link),
 		seen: make(map[string]time.Time), seedIDs: make(map[string]string), dirty: make(chan struct{}, 1),
 	}
 	if listener != nil {
@@ -119,7 +121,7 @@ func (p *Peer) List() []status.Host {
 			h.LastSeenAt = &seen
 			h.Connection = "disconnected"
 		}
-		if n.ID == self || p.links[n.ID] != nil {
+		if n.ID == self || live(p.links[n.ID]) || p.relayForLocked(n.ID) != nil {
 			h.Connection = "connected"
 		}
 		if n.ID == self {
@@ -131,10 +133,14 @@ func (p *Peer) List() []status.Host {
 	return out
 }
 
-func (p *Peer) Get(ctx context.Context, q status.Query) (status.Result, error) {
+func (p *Peer) Get(ctx context.Context, q status.Query) (result status.Result, err error) {
+	start := time.Now()
 	ctx, cancel := context.WithTimeout(ctx, requestTimeout)
 	defer cancel()
-	sections, err := status.ValidateSections(q.Sections)
+	var target string
+	var sections []string
+	defer func() { p.audit("local", target, sections, result, err, time.Since(start)) }()
+	sections, err = status.ValidateSections(q.Sections)
 	if err != nil {
 		return status.Result{}, err
 	}
@@ -143,31 +149,42 @@ func (p *Peer) Get(ctx context.Context, q status.Query) (status.Result, error) {
 	if err != nil {
 		return status.Result{}, err
 	}
+	target = n.ID
 	if n.ID == self.ID {
-		r, err := p.collectLocal(ctx, sections)
-		p.audit("local", n.ID, sections, r, err)
-		return r, err
+		return p.collectLocal(ctx, sections)
 	}
 	p.mu.RLock()
-	l := p.links[n.ID]
+	direct := p.links[n.ID]
 	p.mu.RUnlock()
-	if l == nil {
-		return status.Result{}, status.Error("UNREACHABLE", "no live link to host")
+	if live(direct) {
+		r, err := direct.query(ctx, n.ID, sections, "")
+		if err == nil {
+			r.Route = status.Route{Kind: "direct"}
+			return r, nil
+		}
+		if failure(err).Code != "UNREACHABLE" || ctx.Err() != nil {
+			return status.Result{}, err
+		}
 	}
-	r, err := l.query(ctx, n.ID, sections)
+	p.mu.RLock()
+	relay := p.relayForLocked(n.ID)
+	p.mu.RUnlock()
+	if relay == nil {
+		return status.Result{}, status.Error("UNREACHABLE", "no live route to host")
+	}
+	r, err := relay.query(ctx, n.ID, sections, "")
 	if err == nil {
-		r.Route = status.Route{Kind: "direct"}
+		r.Route = status.Route{Kind: "relay", RelayID: relay.remote}
 	}
-	p.audit("local", n.ID, sections, r, err)
 	return r, err
 }
 
-func (p *Peer) audit(source, target string, sections []string, r status.Result, err error) {
+func (p *Peer) audit(source, target string, sections []string, r status.Result, err error, elapsed time.Duration) {
 	code := "OK"
 	if err != nil {
 		code = failure(err).Code
 	}
-	p.log.Info("status query", "source", source, "target", target, "sections", sections, "route", r.Route.Kind, "result", code)
+	p.log.Info("status query", "source", source, "target", target, "sections", sections, "route", r.Route.Kind, "duration_ms", elapsed.Milliseconds(), "result", code)
 }
 
 func (p *Peer) collectLocal(ctx context.Context, sections []string) (status.Result, error) {
