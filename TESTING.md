@@ -1,6 +1,6 @@
 # host-status-mcp テスト設計
 
-PoC は Linux 上で検証する。通常の確認はホストの Go だけで回し、実際の TCP 接続を使って、接続開始の 2 方向と共通中継の 3 パターンを再現する。Docker は別ネットワーク間の分離まで確認したいときに使う。Windows、macOS を含む実行確認は初回リリース前に行う。
+当面は Linux 上で、ホストの Go を使った単体・結合テストと、Docker を使った複数ノード試験を行う。Linux の配布対象は ARM64 と x86_64。Windows 対応は後続とし、macOS は環境を確保できた時点でのオプションとする。
 
 ## PoC の単体テスト
 
@@ -37,18 +37,21 @@ PoC は Linux 上で検証する。通常の確認はホストの Go だけで�
 
 TCP 負荷試験は資源の余裕があるホストや CI 上で別に行う。100 台のリンクを一つのプロセスでループバック接続すると、4,950 本に対してソケット記述子が両端で少なくとも 9,900 個必要になる。現環境のシェルでのソフト上限は 4,096 だったため、実 TCP で全台を試すときは複数プロセスに分けるか、上限が十分な専用ランナーで実行する。計測項目は台帳の収束時間、リンク数、ピークメモリ、ファイル記述子数、照会の p50・p95・p99 と期限超過数。台数と同時照会数を揃えて結果を記録し、再接続が集中した後も照会が再開できることと、停止後にリンクや待機要求が解放されることを確かめる。
 
-## Docker で行う追加試験
+## Docker で行う複数ノード試験
+
+`HOST_STATUS_DOCKER_TEST=1 go test -count=1 -v ./cmd/host-status-mcp -run '^TestDockerRelay$'` で実行する。ホストでビルドしたバイナリだけの rootfs を `docker image import` で試験イメージにし、3 ノードで共有する。独立した 2 つのブリッジで A・B 間の TCP 遮断と C 経由の MCP 照会を確認する。C を再起動し、同じノード ID で中継が復旧することも確認する。終了時に試験用のコンテナ、ネットワーク、イメージを除去する。
 
 2026 年 11 月 24 日の計測では、この Linux ARM64 ホストの `/` の空きは約 14.0 GiB。`/var/lib/docker`、`/var/lib/containerd`、Go の既定キャッシュはいずれも `/` に載っている。Docker はイメージ 6 件、使用中 5 件、イメージサイズの集計 30.97 GB と報告した。容量の判断には `df` の空きを使い、Docker の集計は消費先の把握に使う。既存ローカルイメージの正確な候補を確認した範囲では、`alpine` と `busybox` は見つからなかった。
 
-Docker を使うときはホストで ARM64 バイナリを一度ビルドし、互換性のある小型イメージへ読み取り専用でマウントする。選んだ既存イメージを使う実行は `--pull=never` とする。実行に必要なファイルが揃う静的バイナリなら、`FROM scratch` にバイナリを入れた試験用イメージ 1 個を複数のコンテナで共有できる。実行前後に `df -h /` と `docker system df` を見て、初回は 2～3 コンテナで消費量を測る。コンテナの状態は容量を制限した一時領域に書き、ログの上限を設定する。終了時は試験で作成したコンテナとネットワークを識別して終了処理する。 [Docker のイメージ取得設定](https://docs.docker.com/reference/cli/docker/container/run/#pull) [Docker の scratch イメージ](https://docs.docker.com/build/building/base-images/#create-a-minimal-base-image-using-scratch)
+Docker 試験ではホスト側でバイナリをビルドし、外部のベースイメージを取得せずに実行する。設定とノードごとの状態は一時ディレクトリに置き、ログの世代数とサイズを制限する。容量を測る場合は、実行前後に `df -h /` と `docker system df` を比較する。 [Docker のイメージ取得設定](https://docs.docker.com/reference/cli/docker/container/run/#pull)
 
 ネットワーク分離の試験では、A–C と B–C 用にユーザー定義のブリッジを作る。A と B は片方ずつ、C は両方に参加させる。ピア用ポートは各ブリッジ内だけに置く。必要なら A の MCP ポートをホストのループバックに公開して照会する。C から A と B の待ち受けに TCP 接続できることと、同じ待ち受けに A–B 間では接続できないことを先に確かめる。その後 A と B から C に接続して中継照会を試す。Linux コンテナはカーネルを共有するので、Docker の結果はネットワーク分離と Linux コンテナ内での観測範囲の確認に使う。ホスト自体の状態採取はネイティブプロセスで確認する。 [Docker のブリッジ](https://docs.docker.com/engine/network/drivers/bridge/) [コンテナとカーネル](https://docs.docker.com/learn/content/what-is-a-container/)
 
 このホストの既定の `go version` は 1.22.2 だが、Go 1.27.3 の Linux ARM64 ツールチェーンがモジュールキャッシュにあり、起動を確認した。たとえば公式 MCP Go SDK v1.7.0 は Go 1.25 以上、採取ライブラリ候補の gopsutil v4.26.10 は Go 1.26 以上を要求する。依存の版を選ぶ際に `go.mod` とテスト環境の Go を揃える。 [MCP Go SDK の go.mod](https://github.com/modelcontextprotocol/go-sdk/blob/v1.7.0/go.mod) [gopsutil の go.mod](https://github.com/shirou/gopsutil/blob/v4.26.10/go.mod)
 
-## 初回リリース前の検証
+## Linux 配布と後続対応の検証
 
-- Windows、macOS、Linux の各実行環境で、共通スキーマ、ネイティブの状態採取、保存と再起動、`stdio`、`/mcp` を確認する。GitHub-hosted runner の OS 別ジョブを使える。GitHub-hosted Windows は既定で管理者として実行されるため、通常ユーザー権限での動作は標準ユーザーで実行できる Windows 環境でも確認する。 [GitHub-hosted runner の OS と権限](https://docs.github.com/en/actions/reference/runners/github-hosted-runners)
-- 3 OS を同じ試験ネットワークで動かし、各 OS を照会元と採取元にして照会する。少なくとも 1 回は共通中継を通し、特にファイルシステムのパス、OS 名、バイト単位、部分失敗を確認する。
+- Linux の ARM64 と x86_64 の配布用バイナリを各アーキテクチャの実行環境で起動し、`version`、採取、MCP 照会を確認する。curl を使う 1 行の導入手順で、対応バイナリの取得、整合性確認、インストール、起動まで試す。
+
+- Windows または macOS に着手した段階で、共通スキーマ、ネイティブ採取、保存と再起動、`stdio`、`/mcp` を検証する。Windows では通常ユーザー権限も確認する。Linux との混在構成で、両方向の照会と共通中継を試す。
 - mTLS を提供する場合は、テスト専用 CA と証明書を試験ごとに生成する。3 パターンの照会、別 CA、期限切れ、DNS または IP の不一致、`node_id` の不一致、台帳署名の不一致、許可取り消しを確認する。PoC では証明書ファイルなしの構成を合格条件とする。
