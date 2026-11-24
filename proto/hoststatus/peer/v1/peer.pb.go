@@ -30,6 +30,9 @@ type Frame struct {
 	//	*Frame_StatusRequest
 	//	*Frame_StatusResponse
 	//	*Frame_Cancel
+	//	*Frame_Inventory
+	//	*Frame_RecordRequest
+	//	*Frame_Records
 	Body          isFrame_Body `protobuf_oneof:"body"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -117,6 +120,33 @@ func (x *Frame) GetCancel() *Cancel {
 	return nil
 }
 
+func (x *Frame) GetInventory() *Inventory {
+	if x != nil {
+		if x, ok := x.Body.(*Frame_Inventory); ok {
+			return x.Inventory
+		}
+	}
+	return nil
+}
+
+func (x *Frame) GetRecordRequest() *RecordRequest {
+	if x != nil {
+		if x, ok := x.Body.(*Frame_RecordRequest); ok {
+			return x.RecordRequest
+		}
+	}
+	return nil
+}
+
+func (x *Frame) GetRecords() *Records {
+	if x != nil {
+		if x, ok := x.Body.(*Frame_Records); ok {
+			return x.Records
+		}
+	}
+	return nil
+}
+
 type isFrame_Body interface {
 	isFrame_Body()
 }
@@ -141,6 +171,18 @@ type Frame_Cancel struct {
 	Cancel *Cancel `protobuf:"bytes,5,opt,name=cancel,proto3,oneof"`
 }
 
+type Frame_Inventory struct {
+	Inventory *Inventory `protobuf:"bytes,6,opt,name=inventory,proto3,oneof"`
+}
+
+type Frame_RecordRequest struct {
+	RecordRequest *RecordRequest `protobuf:"bytes,7,opt,name=record_request,json=recordRequest,proto3,oneof"`
+}
+
+type Frame_Records struct {
+	Records *Records `protobuf:"bytes,8,opt,name=records,proto3,oneof"`
+}
+
 func (*Frame_Hello) isFrame_Body() {}
 
 func (*Frame_Heartbeat) isFrame_Body() {}
@@ -150,6 +192,12 @@ func (*Frame_StatusRequest) isFrame_Body() {}
 func (*Frame_StatusResponse) isFrame_Body() {}
 
 func (*Frame_Cancel) isFrame_Body() {}
+
+func (*Frame_Inventory) isFrame_Body() {}
+
+func (*Frame_RecordRequest) isFrame_Body() {}
+
+func (*Frame_Records) isFrame_Body() {}
 
 type Hello struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -520,17 +568,212 @@ func (x *Cancel) GetId() string {
 	return ""
 }
 
+type RecordVersion struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Revision      uint64                 `protobuf:"varint,2,opt,name=revision,proto3" json:"revision,omitempty"`
+	Hash          []byte                 `protobuf:"bytes,3,opt,name=hash,proto3" json:"hash,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RecordVersion) Reset() {
+	*x = RecordVersion{}
+	mi := &file_proto_hoststatus_peer_v1_peer_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RecordVersion) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RecordVersion) ProtoMessage() {}
+
+func (x *RecordVersion) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_hoststatus_peer_v1_peer_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RecordVersion.ProtoReflect.Descriptor instead.
+func (*RecordVersion) Descriptor() ([]byte, []int) {
+	return file_proto_hoststatus_peer_v1_peer_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *RecordVersion) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *RecordVersion) GetRevision() uint64 {
+	if x != nil {
+		return x.Revision
+	}
+	return 0
+}
+
+func (x *RecordVersion) GetHash() []byte {
+	if x != nil {
+		return x.Hash
+	}
+	return nil
+}
+
+type Inventory struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Versions      []*RecordVersion       `protobuf:"bytes,1,rep,name=versions,proto3" json:"versions,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Inventory) Reset() {
+	*x = Inventory{}
+	mi := &file_proto_hoststatus_peer_v1_peer_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Inventory) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Inventory) ProtoMessage() {}
+
+func (x *Inventory) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_hoststatus_peer_v1_peer_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Inventory.ProtoReflect.Descriptor instead.
+func (*Inventory) Descriptor() ([]byte, []int) {
+	return file_proto_hoststatus_peer_v1_peer_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *Inventory) GetVersions() []*RecordVersion {
+	if x != nil {
+		return x.Versions
+	}
+	return nil
+}
+
+type RecordRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Ids           []string               `protobuf:"bytes,1,rep,name=ids,proto3" json:"ids,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RecordRequest) Reset() {
+	*x = RecordRequest{}
+	mi := &file_proto_hoststatus_peer_v1_peer_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RecordRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RecordRequest) ProtoMessage() {}
+
+func (x *RecordRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_hoststatus_peer_v1_peer_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RecordRequest.ProtoReflect.Descriptor instead.
+func (*RecordRequest) Descriptor() ([]byte, []int) {
+	return file_proto_hoststatus_peer_v1_peer_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *RecordRequest) GetIds() []string {
+	if x != nil {
+		return x.Ids
+	}
+	return nil
+}
+
+type Records struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Nodes         []*NodeRecord          `protobuf:"bytes,1,rep,name=nodes,proto3" json:"nodes,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Records) Reset() {
+	*x = Records{}
+	mi := &file_proto_hoststatus_peer_v1_peer_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Records) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Records) ProtoMessage() {}
+
+func (x *Records) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_hoststatus_peer_v1_peer_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Records.ProtoReflect.Descriptor instead.
+func (*Records) Descriptor() ([]byte, []int) {
+	return file_proto_hoststatus_peer_v1_peer_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *Records) GetNodes() []*NodeRecord {
+	if x != nil {
+		return x.Nodes
+	}
+	return nil
+}
+
 var File_proto_hoststatus_peer_v1_peer_proto protoreflect.FileDescriptor
 
 const file_proto_hoststatus_peer_v1_peer_proto_rawDesc = "" +
 	"\n" +
-	"#proto/hoststatus/peer/v1/peer.proto\x12\x12hoststatus.peer.v1\"\xd2\x02\n" +
+	"#proto/hoststatus/peer/v1/peer.proto\x12\x12hoststatus.peer.v1\"\x96\x04\n" +
 	"\x05Frame\x121\n" +
 	"\x05hello\x18\x01 \x01(\v2\x19.hoststatus.peer.v1.HelloH\x00R\x05hello\x12=\n" +
 	"\theartbeat\x18\x02 \x01(\v2\x1d.hoststatus.peer.v1.HeartbeatH\x00R\theartbeat\x12J\n" +
 	"\x0estatus_request\x18\x03 \x01(\v2!.hoststatus.peer.v1.StatusRequestH\x00R\rstatusRequest\x12M\n" +
 	"\x0fstatus_response\x18\x04 \x01(\v2\".hoststatus.peer.v1.StatusResponseH\x00R\x0estatusResponse\x124\n" +
-	"\x06cancel\x18\x05 \x01(\v2\x1a.hoststatus.peer.v1.CancelH\x00R\x06cancelB\x06\n" +
+	"\x06cancel\x18\x05 \x01(\v2\x1a.hoststatus.peer.v1.CancelH\x00R\x06cancel\x12=\n" +
+	"\tinventory\x18\x06 \x01(\v2\x1d.hoststatus.peer.v1.InventoryH\x00R\tinventory\x12J\n" +
+	"\x0erecord_request\x18\a \x01(\v2!.hoststatus.peer.v1.RecordRequestH\x00R\rrecordRequest\x127\n" +
+	"\arecords\x18\b \x01(\v2\x1b.hoststatus.peer.v1.RecordsH\x00R\arecordsB\x06\n" +
 	"\x04body\"n\n" +
 	"\x05Hello\x12\x18\n" +
 	"\aversion\x18\x01 \x01(\rR\aversion\x12\x17\n" +
@@ -560,7 +803,17 @@ const file_proto_hoststatus_peer_v1_peer_proto_rawDesc = "" +
 	"error_code\x18\x03 \x01(\tR\terrorCode\x12#\n" +
 	"\rerror_message\x18\x04 \x01(\tR\ferrorMessage\"\x18\n" +
 	"\x06Cancel\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id2K\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\"O\n" +
+	"\rRecordVersion\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1a\n" +
+	"\brevision\x18\x02 \x01(\x04R\brevision\x12\x12\n" +
+	"\x04hash\x18\x03 \x01(\fR\x04hash\"J\n" +
+	"\tInventory\x12=\n" +
+	"\bversions\x18\x01 \x03(\v2!.hoststatus.peer.v1.RecordVersionR\bversions\"!\n" +
+	"\rRecordRequest\x12\x10\n" +
+	"\x03ids\x18\x01 \x03(\tR\x03ids\"?\n" +
+	"\aRecords\x124\n" +
+	"\x05nodes\x18\x01 \x03(\v2\x1e.hoststatus.peer.v1.NodeRecordR\x05nodes2K\n" +
 	"\aPeering\x12@\n" +
 	"\x04Link\x12\x19.hoststatus.peer.v1.Frame\x1a\x19.hoststatus.peer.v1.Frame(\x010\x01BJZHgithub.com/TakashiSasaki/host-status-mcp/proto/hoststatus/peer/v1;peerv1b\x06proto3"
 
@@ -576,7 +829,7 @@ func file_proto_hoststatus_peer_v1_peer_proto_rawDescGZIP() []byte {
 	return file_proto_hoststatus_peer_v1_peer_proto_rawDescData
 }
 
-var file_proto_hoststatus_peer_v1_peer_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
+var file_proto_hoststatus_peer_v1_peer_proto_msgTypes = make([]protoimpl.MessageInfo, 11)
 var file_proto_hoststatus_peer_v1_peer_proto_goTypes = []any{
 	(*Frame)(nil),          // 0: hoststatus.peer.v1.Frame
 	(*Hello)(nil),          // 1: hoststatus.peer.v1.Hello
@@ -585,21 +838,30 @@ var file_proto_hoststatus_peer_v1_peer_proto_goTypes = []any{
 	(*StatusRequest)(nil),  // 4: hoststatus.peer.v1.StatusRequest
 	(*StatusResponse)(nil), // 5: hoststatus.peer.v1.StatusResponse
 	(*Cancel)(nil),         // 6: hoststatus.peer.v1.Cancel
+	(*RecordVersion)(nil),  // 7: hoststatus.peer.v1.RecordVersion
+	(*Inventory)(nil),      // 8: hoststatus.peer.v1.Inventory
+	(*RecordRequest)(nil),  // 9: hoststatus.peer.v1.RecordRequest
+	(*Records)(nil),        // 10: hoststatus.peer.v1.Records
 }
 var file_proto_hoststatus_peer_v1_peer_proto_depIdxs = []int32{
-	1, // 0: hoststatus.peer.v1.Frame.hello:type_name -> hoststatus.peer.v1.Hello
-	3, // 1: hoststatus.peer.v1.Frame.heartbeat:type_name -> hoststatus.peer.v1.Heartbeat
-	4, // 2: hoststatus.peer.v1.Frame.status_request:type_name -> hoststatus.peer.v1.StatusRequest
-	5, // 3: hoststatus.peer.v1.Frame.status_response:type_name -> hoststatus.peer.v1.StatusResponse
-	6, // 4: hoststatus.peer.v1.Frame.cancel:type_name -> hoststatus.peer.v1.Cancel
-	2, // 5: hoststatus.peer.v1.Hello.node:type_name -> hoststatus.peer.v1.NodeRecord
-	0, // 6: hoststatus.peer.v1.Peering.Link:input_type -> hoststatus.peer.v1.Frame
-	0, // 7: hoststatus.peer.v1.Peering.Link:output_type -> hoststatus.peer.v1.Frame
-	7, // [7:8] is the sub-list for method output_type
-	6, // [6:7] is the sub-list for method input_type
-	6, // [6:6] is the sub-list for extension type_name
-	6, // [6:6] is the sub-list for extension extendee
-	0, // [0:6] is the sub-list for field type_name
+	1,  // 0: hoststatus.peer.v1.Frame.hello:type_name -> hoststatus.peer.v1.Hello
+	3,  // 1: hoststatus.peer.v1.Frame.heartbeat:type_name -> hoststatus.peer.v1.Heartbeat
+	4,  // 2: hoststatus.peer.v1.Frame.status_request:type_name -> hoststatus.peer.v1.StatusRequest
+	5,  // 3: hoststatus.peer.v1.Frame.status_response:type_name -> hoststatus.peer.v1.StatusResponse
+	6,  // 4: hoststatus.peer.v1.Frame.cancel:type_name -> hoststatus.peer.v1.Cancel
+	8,  // 5: hoststatus.peer.v1.Frame.inventory:type_name -> hoststatus.peer.v1.Inventory
+	9,  // 6: hoststatus.peer.v1.Frame.record_request:type_name -> hoststatus.peer.v1.RecordRequest
+	10, // 7: hoststatus.peer.v1.Frame.records:type_name -> hoststatus.peer.v1.Records
+	2,  // 8: hoststatus.peer.v1.Hello.node:type_name -> hoststatus.peer.v1.NodeRecord
+	7,  // 9: hoststatus.peer.v1.Inventory.versions:type_name -> hoststatus.peer.v1.RecordVersion
+	2,  // 10: hoststatus.peer.v1.Records.nodes:type_name -> hoststatus.peer.v1.NodeRecord
+	0,  // 11: hoststatus.peer.v1.Peering.Link:input_type -> hoststatus.peer.v1.Frame
+	0,  // 12: hoststatus.peer.v1.Peering.Link:output_type -> hoststatus.peer.v1.Frame
+	12, // [12:13] is the sub-list for method output_type
+	11, // [11:12] is the sub-list for method input_type
+	11, // [11:11] is the sub-list for extension type_name
+	11, // [11:11] is the sub-list for extension extendee
+	0,  // [0:11] is the sub-list for field type_name
 }
 
 func init() { file_proto_hoststatus_peer_v1_peer_proto_init() }
@@ -613,6 +875,9 @@ func file_proto_hoststatus_peer_v1_peer_proto_init() {
 		(*Frame_StatusRequest)(nil),
 		(*Frame_StatusResponse)(nil),
 		(*Frame_Cancel)(nil),
+		(*Frame_Inventory)(nil),
+		(*Frame_RecordRequest)(nil),
+		(*Frame_Records)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -620,7 +885,7 @@ func file_proto_hoststatus_peer_v1_peer_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_hoststatus_peer_v1_peer_proto_rawDesc), len(file_proto_hoststatus_peer_v1_peer_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   7,
+			NumMessages:   11,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

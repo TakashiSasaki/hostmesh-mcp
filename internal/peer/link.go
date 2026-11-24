@@ -43,34 +43,7 @@ func (p *Peer) Link(s grpc.BidiStreamingServer[wire.Frame, wire.Frame]) error {
 	return nil
 }
 
-func (p *Peer) seedLoop(endpoint string) {
-	delay := time.Second
-	for p.ctx.Err() == nil {
-		p.mu.RLock()
-		l := p.links[p.seedIDs[endpoint]]
-		p.mu.RUnlock()
-		if l != nil {
-			select {
-			case <-l.ctx.Done():
-			case <-p.ctx.Done():
-				return
-			}
-		}
-		if p.connect(endpoint, "", endpoint) {
-			delay = time.Second
-		}
-		timer := time.NewTimer(delay)
-		select {
-		case <-timer.C:
-		case <-p.ctx.Done():
-			timer.Stop()
-			return
-		}
-		delay = min(delay*2, 30*time.Second)
-	}
-}
-
-func (p *Peer) connect(endpoint, expectedID, seed string) bool {
+func (p *Peer) connect(endpoint, expectedID, seed string, ready func()) bool {
 	c, err := grpc.NewClient("passthrough:///"+endpoint,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithContextDialer(p.dial),
@@ -87,7 +60,7 @@ func (p *Peer) connect(endpoint, expectedID, seed string) bool {
 	if err != nil {
 		return false
 	}
-	return p.runStream(s, uuid.NewString(), expectedID, seed, func() { timer.Stop() })
+	return p.runStream(s, uuid.NewString(), expectedID, seed, func() { timer.Stop(); ready() })
 }
 
 func hello(self status.Node, id string) *wire.Frame {
@@ -145,16 +118,18 @@ func (p *Peer) runStream(s stream, id, expectedID, seed string, established func
 		l.id, l.initiator = h.LinkId, n.ID
 		l.send(hello(self, l.id))
 	}
-	if _, _, err := p.dir.Merge([]status.Node{n}); err != nil {
+	if err := p.importRecords([]status.Node{n}); err != nil {
 		p.log.Error("save peer record", "err", err)
 		return false
 	}
+	registered := p.register(l, seed)
 	if established != nil {
 		established()
 	}
-	if !p.register(l, seed) {
+	if !registered {
 		return false
 	}
+	p.markDirty()
 	defer p.unregister(l)
 	heartbeat := time.NewTicker(heartbeatInterval)
 	defer heartbeat.Stop()
@@ -246,6 +221,12 @@ func (l *link) receive(frame *wire.Frame) bool {
 	switch b := frame.Body.(type) {
 	case *wire.Frame_Heartbeat:
 		return true
+	case *wire.Frame_Inventory:
+		return l.receiveInventory(b.Inventory)
+	case *wire.Frame_RecordRequest:
+		return l.sendRecords(b.RecordRequest)
+	case *wire.Frame_Records:
+		return l.receiveRecords(b.Records)
 	case *wire.Frame_StatusRequest:
 		return l.startRequest(b.StatusRequest)
 	case *wire.Frame_StatusResponse:

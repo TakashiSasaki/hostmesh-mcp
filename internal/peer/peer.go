@@ -39,6 +39,7 @@ type Directory interface {
 type Config struct {
 	Seeds     []string
 	DenyNodes []string
+	Refresh   func() (bool, error)
 }
 
 type Peer struct {
@@ -58,6 +59,7 @@ type Peer struct {
 	links   map[string]*link
 	seen    map[string]time.Time
 	seedIDs map[string]string
+	dirty   chan struct{}
 }
 
 func Start(ctx context.Context, cfg Config, listener net.Listener, dir Directory, collect status.Collector,
@@ -74,7 +76,7 @@ func Start(ctx context.Context, cfg Config, listener net.Listener, dir Directory
 	p := &Peer{
 		ctx: ctx, cancel: cancel, dir: dir, collect: collect, config: cfg, dial: dial, log: logger,
 		jobs: make(chan struct{}, maxRequests), links: make(map[string]*link),
-		seen: make(map[string]time.Time), seedIDs: make(map[string]string),
+		seen: make(map[string]time.Time), seedIDs: make(map[string]string), dirty: make(chan struct{}, 1),
 	}
 	if listener != nil {
 		p.server = grpc.NewServer(grpc.MaxRecvMsgSize(maxFrame), grpc.MaxSendMsgSize(maxFrame), grpc.WaitForHandlers(true))
@@ -86,9 +88,7 @@ func Start(ctx context.Context, cfg Config, listener net.Listener, dir Directory
 			}
 		})
 	}
-	for _, seed := range cfg.Seeds {
-		p.wg.Go(func() { p.seedLoop(seed) })
-	}
+	p.wg.Go(p.manage)
 	return p
 }
 

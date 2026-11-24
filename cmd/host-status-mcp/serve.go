@@ -104,12 +104,16 @@ func serve(ctx context.Context, version string, c config) error {
 			return err
 		}
 	}
-	info, err := state.LocalNode(c.Peer.Advertise, false)
+	readNode := func() (status.Node, error) {
+		info, err := state.LocalNode(c.Peer.Advertise, false)
+		if c.Peer.ShareAddresses != nil && !*c.Peer.ShareAddresses {
+			info.Addresses = []string{}
+		}
+		return info, err
+	}
+	info, err := readNode()
 	if err != nil {
 		return err
-	}
-	if c.Peer.ShareAddresses != nil && !*c.Peer.ShareAddresses {
-		info.Addresses = []string{}
 	}
 	dir, err := state.Open(c.StateDir, info)
 	if err != nil {
@@ -135,7 +139,13 @@ func serve(ctx context.Context, version string, c config) error {
 		}
 		defer peerListener.Close()
 	}
-	p := peer.Start(ctx, peer.Config{Seeds: c.Peer.Seeds, DenyNodes: c.Peer.DenyNodes}, peerListener, dir, status.Native(c.Filesystems), nil, nil)
+	p := peer.Start(ctx, peer.Config{Seeds: c.Peer.Seeds, DenyNodes: c.Peer.DenyNodes, Refresh: func() (bool, error) {
+		info, err := readNode()
+		if err != nil {
+			return false, err
+		}
+		return dir.UpdateSelf(info)
+	}}, peerListener, dir, status.Native(c.Filesystems), nil, nil)
 	defer p.Close()
 	fmt.Fprintf(os.Stderr, "host-status-mcp %s node_id=%s\n", version, dir.Self().ID)
 	if peerListener != nil {

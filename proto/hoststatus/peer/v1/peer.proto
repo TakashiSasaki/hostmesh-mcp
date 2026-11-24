@@ -13,6 +13,9 @@ message Frame {
     StatusRequest status_request = 3;
     StatusResponse status_response = 4;
     Cancel cancel = 5;
+    Inventory inventory = 6;
+    RecordRequest record_request = 7;
+    Records records = 8;
   }
 }
 
@@ -51,4 +54,22 @@ message StatusResponse {
 
 message Cancel {
   string id = 1;
+}
+
+message RecordVersion {
+  string id = 1;
+  uint64 revision = 2;
+  bytes hash = 3;
+}
+
+message Inventory {
+  repeated RecordVersion versions = 1;
+}
+
+message RecordRequest {
+  repeated string ids = 1;
+}
+
+message Records {
+  repeated NodeRecord nodes = 1;
 }
