@@ -22,10 +22,11 @@ import (
 )
 
 type config struct {
-	MCPListen   string     `json:"mcp_listen"`
-	StateDir    string     `json:"state_dir"`
-	Filesystems []string   `json:"filesystems"`
-	Peer        peerConfig `json:"peer"`
+	AllowProcessKill bool       `json:"allow_process_kill,omitempty"`
+	MCPListen        string     `json:"mcp_listen"`
+	StateDir         string     `json:"state_dir"`
+	Filesystems      []string   `json:"filesystems"`
+	Peer             peerConfig `json:"peer"`
 }
 
 type peerConfig struct {
@@ -165,7 +166,11 @@ func serve(ctx context.Context, version string, c config) error {
 			return fmt.Errorf("peer service stopped")
 		}
 	}
-	handler := mcpserver.HTTP(mcpserver.New(version, p))
+	mcp := mcpserver.New(version, p)
+	if c.AllowProcessKill {
+		mcpserver.AddProcessKill(mcp, dir.Self().ID)
+	}
+	handler := mcpserver.HTTP(mcp)
 	server := &http.Server{Handler: handler, ReadHeaderTimeout: 3 * time.Second, ReadTimeout: 10 * time.Second, WriteTimeout: 10 * time.Second, IdleTimeout: 30 * time.Second}
 	fmt.Fprintf(os.Stderr, "MCP listening on http://%s/mcp\n", mcpListener.Addr())
 	done := make(chan error, 1)

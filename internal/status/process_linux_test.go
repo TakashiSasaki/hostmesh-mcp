@@ -10,14 +10,14 @@ import (
 func TestProcessRankingAndPIDReuse(t *testing.T) {
 	now := time.Now()
 	first := []processSample{
-		{pid: 10, startedMS: 1, takenAt: now, cpu: 1},
-		{pid: 20, startedMS: 2, takenAt: now, cpu: 2},
-		{pid: 30, startedMS: 3, takenAt: now, cpu: 0},
+		{pid: 10, startTicks: 1, takenAt: now, cpu: 1},
+		{pid: 20, startTicks: 2, takenAt: now, cpu: 2},
+		{pid: 30, startTicks: 3, takenAt: now, cpu: 0},
 	}
 	second := []processSample{
-		{pid: 10, startedMS: 1, takenAt: now.Add(time.Second), cpu: 1.5},
-		{pid: 20, startedMS: 2, takenAt: now.Add(time.Second), cpu: 4.5},
-		{pid: 30, startedMS: 4, takenAt: now.Add(time.Second), cpu: 100},
+		{pid: 10, startTicks: 1, takenAt: now.Add(time.Second), cpu: 1.5},
+		{pid: 20, startTicks: 2, takenAt: now.Add(time.Second), cpu: 4.5},
+		{pid: 30, startTicks: 4, takenAt: now.Add(time.Second), cpu: 100},
 	}
 	got := summarizeProcesses(first, second, 1)
 	if got.Total != 3 || got.Truncated || got.Skipped != 1 {

@@ -81,6 +81,7 @@ type Interface struct {
 }
 
 type Process struct {
+	Identity      string   `json:"process_identity,omitempty"`
 	PID           int32    `json:"pid"`
 	Name          string   `json:"name"`
 	CPUPercent    *float64 `json:"cpu_percent"`

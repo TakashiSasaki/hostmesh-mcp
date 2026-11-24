@@ -61,8 +61,11 @@ sequenceDiagram
 | `server_version` | `{}` | MCP の接続先サーバー名と、起動ログおよび `serverInfo.version` と同じ製品バージョン。 |
 | `host_list` | `{}` | ローカル台帳で既知かつ閲覧できるホストの ID、名前、OS、IP、照会元から見た接続状態、最終確認時刻。同期途中や分断中はその時点で把握している一覧を返す。 |
 | `host_status` | `target` を省略するとローカル。指定する場合は `{"node_id":"…"}` または `{"hostname":"build","ip":"192.0.2.32"}`。`sections` を省略すると許可された標準項目を採取する。 | 対象ホスト、採取時刻、照会経路、要求された項目の値、項目ごとの採取エラー。 |
+| `process_kill` | ローカルの `processes` 一覧から取得した `pid` と `process_identity`。任意の `signal` は `TERM`（既定）または `KILL`。 | OS が受け付けたシグナルと対象 PID。 |
 
-各ツールに `readOnlyHint: true` を設定する。成功時は出力スキーマに沿った `structuredContent` と互換用のテキストを返す。`HOST_NOT_FOUND`、`AMBIGUOUS_HOST`、`UNREACHABLE`、`DEADLINE_EXCEEDED` などの照会エラーは、対応するコードを含む `isError: true` のツール結果にする。`HOST_NOT_FOUND` は照会元の台帳で該当する対象を見つけられなかったこと、`UNREACHABLE` は対象への経路を利用できなかったことを示す。 [MCP のツール仕様](https://modelcontextprotocol.io/specification/2026-07-28/server/tools) [Go SDK のツール注釈](https://pkg.go.dev/github.com/modelcontextprotocol/go-sdk/mcp#ToolAnnotations)
+`server_version`、`host_list`、`host_status` に `readOnlyHint: true` を設定する。`process_kill` は `readOnlyHint: false`、`destructiveHint: true` とする。成功時は出力スキーマに沿った `structuredContent` と互換用のテキストを返す。`HOST_NOT_FOUND`、`AMBIGUOUS_HOST`、`UNREACHABLE`、`DEADLINE_EXCEEDED` などの照会エラーは、対応するコードを含む `isError: true` のツール結果にする。`HOST_NOT_FOUND` は照会元の台帳で該当する対象を見つけられなかったこと、`UNREACHABLE` は対象への経路を利用できなかったことを示す。 [MCP のツール仕様](https://modelcontextprotocol.io/specification/2026-07-28/server/tools) [Go SDK のツール注釈](https://pkg.go.dev/github.com/modelcontextprotocol/go-sdk/mcp#ToolAnnotations)
+
+`process_kill` は Linux PoC のローカル操作とする。stdio で登録し、ループバックの HTTP では `allow_process_kill` が有効な場合に登録する。プロセスの識別子にはノード ID、OS の起動 ID、PID 名前空間、PID、プロセスの開始時刻を使う。操作時は対象の pidfd を開き、識別子を照合したうえでその pidfd にシグナルを送る。識別子の不一致、送信権限の不足、PID 1 とサーバー自身への操作はエラーにする。ピア間の RPC は状態照会を扱う。 [Linux の pidfd](https://man7.org/linux/man-pages/man2/pidfd_open.2.html) [pidfd によるシグナル送信](https://man7.org/linux/man-pages/man2/pidfd_send_signal.2.html)
 
 たとえば A の `host_status` に `{"target":{"hostname":"build","ip":"192.0.2.32"},"sections":["memory"]}` を渡すと、B が採取した値を返す。
 
@@ -107,7 +110,7 @@ CPU とメモリには `gopsutil/v4` の `cpu` と `mem` を候補とする。�
 
 `host_status` で `sections` を明示した場合、`swap`、`network`、`processes` を選べる。対象ピア自身が採取し、直結または許可済み中継で返す。`network` はピア接続の接続先情報に加え、対象ノードのローカルインターフェースごとの状態とアドレスを取得する。`peer.share_addresses: false` は台帳のアドレス広告と、ピア向けのインターフェース応答の両方に適用する。
 
-`processes` は PID とプロセスの開始時刻を比較して CPU 時間の差分を取り、1 コアを 100% とする使用率で並べる。最大 100 件を返し、差分が取れないプロセスは CPU 使用率を `null` にする。名前、PID、常駐メモリを返す。
+`processes` は PID とプロセスの開始時刻を比較して CPU 時間の差分を取り、1 コアを 100% とする使用率で並べる。最大 100 件を返し、差分が取れないプロセスは CPU 使用率を `null` にする。名前、PID、常駐メモリと、取得できる場合はプロセスの識別子 `process_identity` を返す。
 
 `swap` は Linux のスワップ総量・使用量・空き容量をバイトで返す。Windows のページファイル採取は Windows 対応時に設計する。
 

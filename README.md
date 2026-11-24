@@ -69,6 +69,18 @@ A と B が C を共通中継にする場合は、C で `peer.relay: true` と `
 
 プロセスの CPU 使用率は約 1 秒間隔の 2 サンプルから計算し、1 コアを使い切ると 100% になる。計測中に起動したプロセスなど、差分を取れない場合は `cpu_percent` が `null` になる。Docker では採取元コンテナから見えるプロセスとインターフェースが返る。
 
+## ローカルプロセスの終了
+
+`server_version`、`host_list`、`host_status` は読み取り専用として通知する。`process_kill` は破壊的な書き込みツールとして通知し、接続先 MCP サーバーの Linux プロセスにシグナルを送る。stdio では利用できる。ループバックの HTTP で有効にするには、設定のトップレベルに `"allow_process_kill": true` を追加する。
+
+`host_status` に `{"sections":["processes"]}` を渡し、ローカルの一覧から対象の `pid` と `process_identity` をコピーする。次の例の値を対象のプロセスに合わせて置き換える。
+
+```json
+{"pid": 1234, "process_identity": "一覧で取得した識別子", "signal": "TERM"}
+```
+
+`signal` の既定値は `TERM`。強制終了するには `KILL` を明示する。`signal_sent: true` は OS がシグナル送信を受け付けたことを示す。終了したかはプロセス一覧で確認する。PID 1 と MCP サーバー自身への送信は拒否する。送信には実行ユーザーの OS 権限と Linux の pidfd 対応が必要。
+
 ## テスト
 
 ```sh

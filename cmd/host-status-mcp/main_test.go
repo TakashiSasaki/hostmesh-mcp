@@ -42,11 +42,16 @@ func TestStdio(t *testing.T) {
 			t.Fatalf("server advertised version %q", version)
 		}
 		tools, err := session.ListTools(ctx, nil)
-		if err != nil || len(tools.Tools) != 3 {
+		if err != nil || len(tools.Tools) != 4 {
 			t.Fatalf("tool list = %v, err = %v", tools, err)
 		}
 		for _, tool := range tools.Tools {
-			if tool.Annotations == nil || !tool.Annotations.ReadOnlyHint {
+			if tool.Name == "process_kill" {
+				a := tool.Annotations
+				if a == nil || a.ReadOnlyHint || a.DestructiveHint == nil || !*a.DestructiveHint {
+					t.Fatalf("wrong write annotations: %+v", a)
+				}
+			} else if tool.Annotations == nil || !tool.Annotations.ReadOnlyHint {
 				t.Fatalf("not read only: %s", tool.Name)
 			}
 		}
