@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"strings"
 	"syscall"
 
@@ -36,8 +35,23 @@ func run(ctx context.Context, args []string) error {
 		fmt.Println(version)
 		return nil
 	}
+	if len(args) > 0 && args[0] == "serve" {
+		flags := flag.NewFlagSet("serve", flag.ContinueOnError)
+		path := flags.String("config", "", "JSON configuration file")
+		if err := flags.Parse(args[1:]); err != nil {
+			return err
+		}
+		if *path == "" || flags.NArg() != 0 {
+			return fmt.Errorf("usage: host-status-mcp serve -config <path>")
+		}
+		cfg, err := readConfig(*path)
+		if err != nil {
+			return err
+		}
+		return serve(ctx, version, cfg)
+	}
 	if len(args) == 0 || args[0] != "stdio" {
-		return fmt.Errorf("usage: host-status-mcp version | stdio [-state-dir directory]")
+		return fmt.Errorf("usage: host-status-mcp version | stdio [-state-dir directory] | serve -config <path>")
 	}
 	flags := flag.NewFlagSet("stdio", flag.ContinueOnError)
 	dir := flags.String("state-dir", "", "persistent state directory")
@@ -48,11 +62,11 @@ func run(ctx context.Context, args []string) error {
 		return fmt.Errorf("unexpected arguments")
 	}
 	if *dir == "" {
-		root, err := os.UserConfigDir()
+		stateDir, err := defaultStateDir()
 		if err != nil {
 			return err
 		}
-		*dir = filepath.Join(root, "host-status-mcp", "state")
+		*dir = stateDir
 	}
 	info, err := state.LocalNode(nil, false)
 	if err != nil {

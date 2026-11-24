@@ -1,0 +1,54 @@
+syntax = "proto3";
+package hoststatus.peer.v1;
+option go_package = "github.com/TakashiSasaki/host-status-mcp/proto/hoststatus/peer/v1;peerv1";
+
+service Peering {
+  rpc Link(stream Frame) returns (stream Frame);
+}
+
+message Frame {
+  oneof body {
+    Hello hello = 1;
+    Heartbeat heartbeat = 2;
+    StatusRequest status_request = 3;
+    StatusResponse status_response = 4;
+    Cancel cancel = 5;
+  }
+}
+
+message Hello {
+  uint32 version = 1;
+  string link_id = 2;
+  NodeRecord node = 3;
+}
+
+message NodeRecord {
+  string id = 1;
+  string hostname = 2;
+  string os = 3;
+  repeated string addresses = 4;
+  repeated string endpoints = 5;
+  bool relay = 6;
+  uint64 revision = 7;
+}
+
+message Heartbeat {}
+
+message StatusRequest {
+  string id = 1;
+  string target_id = 2;
+  repeated string sections = 3;
+  uint32 timeout_ms = 4;
+}
+
+message StatusResponse {
+  string id = 1;
+  // JSON uses the same result fields and units as the host_status MCP tool.
+  bytes result_json = 2;
+  string error_code = 3;
+  string error_message = 4;
+}
+
+message Cancel {
+  string id = 1;
+}
