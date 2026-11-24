@@ -95,7 +95,16 @@ func (p *Peer) serveRequest(ctx context.Context, source string, req *wire.Status
 		return status.Result{}, status.Error("FORBIDDEN", "forwarded request is not permitted")
 	}
 	if req.TargetId == self.ID {
-		return p.collectLocal(ctx, sections)
+		result, err := p.collectLocal(ctx, sections)
+		if err == nil && p.config.HideInterfaceAddresses {
+			// Keep shared collector results independent of the peer's address policy.
+			result.Node.Addresses = []string{}
+			result.Sections.Network = slices.Clone(result.Sections.Network)
+			for i := range result.Sections.Network {
+				result.Sections.Network[i].Addresses = []string{}
+			}
+		}
+		return result, err
 	}
 	if !self.Relay {
 		return status.Result{}, status.Error("FORBIDDEN", "relay is disabled")

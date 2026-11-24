@@ -41,6 +41,7 @@ type Route struct {
 }
 
 type System struct {
+	ServerVersion string `json:"server_version,omitempty"`
 	UptimeSeconds uint64 `json:"uptime_seconds"`
 	ProcessArch   string `json:"process_arch"`
 }
@@ -62,7 +63,42 @@ type Filesystem struct {
 	AvailableBytes uint64 `json:"available_bytes"`
 }
 
+type Swap struct {
+	Enabled    bool   `json:"enabled"`
+	TotalBytes uint64 `json:"total_bytes"`
+	UsedBytes  uint64 `json:"used_bytes"`
+	FreeBytes  uint64 `json:"free_bytes"`
+}
+
+type Interface struct {
+	Index     int      `json:"index"`
+	Name      string   `json:"name"`
+	Up        bool     `json:"up"`
+	Running   bool     `json:"running"`
+	Loopback  bool     `json:"loopback"`
+	MTU       int      `json:"mtu"`
+	Addresses []string `json:"addresses"`
+}
+
+type Process struct {
+	PID           int32    `json:"pid"`
+	Name          string   `json:"name"`
+	CPUPercent    *float64 `json:"cpu_percent"`
+	ResidentBytes *uint64  `json:"resident_bytes"`
+}
+
+type ProcessList struct {
+	SampleWindowMS int64     `json:"sample_window_ms"`
+	Total          int       `json:"total"`
+	Skipped        int       `json:"skipped"`
+	Truncated      bool      `json:"truncated"`
+	Items          []Process `json:"items"`
+}
+
 type Sections struct {
+	Swap        *Swap        `json:"swap,omitempty"`
+	Network     []Interface  `json:"network,omitempty"`
+	Processes   *ProcessList `json:"processes,omitempty"`
 	System      *System      `json:"system,omitempty"`
 	CPU         *CPU         `json:"cpu,omitempty"`
 	Memory      *Memory      `json:"memory,omitempty"`
@@ -94,16 +130,21 @@ func Error(code, message string) *Failure {
 
 var standard = []string{"system", "cpu", "memory", "filesystems"}
 
+func SupportedSections() []string {
+	return slices.Concat(standard, []string{"swap", "network", "processes"})
+}
+
 func ValidateSections(sections []string) ([]string, error) {
 	if sections == nil {
 		return slices.Clone(standard), nil
 	}
-	if len(sections) == 0 || len(sections) > len(standard) {
+	supported := SupportedSections()
+	if len(sections) == 0 || len(sections) > len(supported) {
 		return nil, Error("INVALID_ARGUMENT", "select one or more distinct sections")
 	}
 	seen := make(map[string]bool)
 	for _, s := range sections {
-		if !slices.Contains(standard, s) || seen[s] {
+		if !slices.Contains(supported, s) || seen[s] {
 			return nil, Error("INVALID_ARGUMENT", fmt.Sprintf("invalid or repeated section %q", s))
 		}
 		seen[s] = true

@@ -235,3 +235,27 @@ func TestBusyForSaturatedCollector(t *testing.T) {
 		t.Fatalf("collector did not recover: %+v, %v", got, err)
 	}
 }
+
+func TestPeerHidesInterfaceAddresses(t *testing.T) {
+	dir := testDirectory(t, "hidden", nil, false)
+	local := []status.Interface{{Name: "lan0", Up: true, Addresses: []string{"192.0.2.32/24"}}}
+	collect := func(ctx context.Context, node status.Node, sections []string) (status.Result, error) {
+		result, err := fixture(100)(ctx, node, sections)
+		result.Sections.Network = local
+		return result, err
+	}
+	p := Start(t.Context(), Config{HideInterfaceAddresses: true}, nil, dir, collect, nil, quietLogger)
+	t.Cleanup(p.Close)
+	request := &wire.StatusRequest{TargetId: dir.Self().ID, Sections: []string{"network"}}
+	got, err := p.serveRequest(t.Context(), "remote-peer", request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Node.Addresses) != 0 || len(got.Sections.Network) != 1 ||
+		len(got.Sections.Network[0].Addresses) != 0 {
+		t.Fatalf("peer lookup exposed interface addresses: %+v", got)
+	}
+	if len(local[0].Addresses) != 1 {
+		t.Fatal("peer redaction modified the collector result")
+	}
+}

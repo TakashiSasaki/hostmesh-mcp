@@ -10,7 +10,7 @@ import (
 
 func TestNativePartialAndTotalFailure(t *testing.T) {
 	missing := filepath.Join(t.TempDir(), "missing")
-	collect := Native([]string{missing})
+	collect := Native([]string{missing}, "test")
 	node := Node{OS: "linux"}
 
 	got, err := collect(t.Context(), node, []string{"system", "filesystems"})

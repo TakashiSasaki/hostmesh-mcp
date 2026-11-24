@@ -14,7 +14,7 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-func Native(paths []string) Collector {
+func Native(paths []string, version string) Collector {
 	return func(ctx context.Context, node Node, sections []string) (Result, error) {
 		result := Result{Node: node, Route: Route{Kind: "local"}, Errors: make(map[string]string)}
 		success := 0
@@ -28,7 +28,7 @@ func Native(paths []string) Collector {
 				var info unix.Sysinfo_t
 				err = unix.Sysinfo(&info)
 				if err == nil {
-					result.Sections.System = &System{UptimeSeconds: uint64(info.Uptime), ProcessArch: runtime.GOARCH}
+					result.Sections.System = &System{ServerVersion: version, UptimeSeconds: uint64(info.Uptime), ProcessArch: runtime.GOARCH}
 				}
 			case "cpu":
 				start := time.Now()
@@ -47,6 +47,18 @@ func Native(paths []string) Collector {
 				if err == nil {
 					result.Sections.Memory = &Memory{TotalBytes: value.Total, AvailableBytes: value.Available}
 				}
+			case "swap":
+				var info unix.Sysinfo_t
+				err = unix.Sysinfo(&info)
+				if err == nil {
+					total := uint64(info.Totalswap) * uint64(info.Unit)
+					free := uint64(info.Freeswap) * uint64(info.Unit)
+					result.Sections.Swap = &Swap{Enabled: total > 0, TotalBytes: total, FreeBytes: free, UsedBytes: total - free}
+				}
+			case "network":
+				result.Sections.Network, err = networkInterfaces(result.Errors)
+			case "processes":
+				result.Sections.Processes, err = collectProcesses(ctx)
 			case "filesystems":
 				for _, path := range paths {
 					if err := ctx.Err(); err != nil {

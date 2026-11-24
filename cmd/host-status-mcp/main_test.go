@@ -42,13 +42,21 @@ func TestStdio(t *testing.T) {
 			t.Fatalf("server advertised version %q", version)
 		}
 		tools, err := session.ListTools(ctx, nil)
-		if err != nil || len(tools.Tools) != 2 {
+		if err != nil || len(tools.Tools) != 3 {
 			t.Fatalf("tool list = %v, err = %v", tools, err)
 		}
 		for _, tool := range tools.Tools {
 			if tool.Annotations == nil || !tool.Annotations.ReadOnlyHint {
 				t.Fatalf("not read only: %s", tool.Name)
 			}
+		}
+		versionReply, err := session.CallTool(ctx, &mcp.CallToolParams{Name: "server_version", Arguments: map[string]any{}})
+		if err != nil || versionReply.IsError {
+			t.Fatalf("server_version = %v, err = %v", versionReply, err)
+		}
+		versionResult, ok := versionReply.StructuredContent.(map[string]any)
+		if !ok || versionResult["version"] != strings.TrimSpace(versionFile) {
+			t.Fatalf("server_version returned %v", versionReply.StructuredContent)
 		}
 		reply, err := session.CallTool(ctx, &mcp.CallToolParams{Name: "host_status", Arguments: map[string]any{"sections": []string{"system", "cpu", "memory", "filesystems"}}})
 		if err != nil || reply.IsError {
@@ -65,7 +73,7 @@ func TestStdio(t *testing.T) {
 		if r.Node.ID == "" || r.Node.OS != "linux" || r.ObservedAt.IsZero() || r.Route.Kind != "local" {
 			t.Fatalf("invalid local result: %+v", r)
 		}
-		if r.Sections.System == nil || r.Sections.CPU == nil || r.Sections.Memory == nil || len(r.Sections.Filesystems) != 1 {
+		if r.Sections.System == nil || r.Sections.System.ServerVersion != strings.TrimSpace(versionFile) || r.Sections.CPU == nil || r.Sections.Memory == nil || len(r.Sections.Filesystems) != 1 {
 			t.Fatalf("missing metric: %+v", r)
 		}
 		if previous != "" && r.Node.ID != previous {

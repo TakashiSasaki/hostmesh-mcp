@@ -37,10 +37,11 @@ type Directory interface {
 }
 
 type Config struct {
-	Seeds         []string
-	DenyNodes     []string
-	TrustedRelays []string
-	Refresh       func() (bool, error)
+	HideInterfaceAddresses bool
+	Seeds                  []string
+	DenyNodes              []string
+	TrustedRelays          []string
+	Refresh                func() (bool, error)
 }
 
 type Peer struct {

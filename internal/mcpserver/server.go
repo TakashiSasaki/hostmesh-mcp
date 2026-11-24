@@ -17,13 +17,23 @@ type hostList struct {
 	Hosts []status.Host `json:"hosts"`
 }
 
+type serverVersion struct {
+	Name    string `json:"name"`
+	Version string `json:"version"`
+}
+
 func New(version string, backend Backend) *mcp.Server {
-	server := mcp.NewServer(&mcp.Implementation{Name: "host-status-mcp", Version: version}, nil)
+	const serverName = "host-status-mcp"
+	server := mcp.NewServer(&mcp.Implementation{Name: serverName, Version: version}, nil)
+	mcp.AddTool(server, &mcp.Tool{Name: "server_version", Description: "Get the version of the connected MCP server.", Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true}},
+		func(_ context.Context, _ *mcp.CallToolRequest, _ struct{}) (*mcp.CallToolResult, serverVersion, error) {
+			return nil, serverVersion{Name: serverName, Version: version}, nil
+		})
 	mcp.AddTool(server, &mcp.Tool{Name: "host_list", Description: "List known hosts and their connection state.", Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true}},
 		func(_ context.Context, _ *mcp.CallToolRequest, _ struct{}) (*mcp.CallToolResult, hostList, error) {
 			return nil, hostList{Hosts: backend.List()}, nil
 		})
-	mcp.AddTool(server, &mcp.Tool{Name: "host_status", Description: "Read host status. Omit target for the local host. Select system, cpu, memory or filesystems.", Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true}},
+	mcp.AddTool(server, &mcp.Tool{Name: "host_status", Description: "Read host status. Omit target for the local host. Select system, cpu, memory, filesystems, swap, network or processes. Processes reports the top 100 by sampled CPU usage.", Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true}},
 		func(ctx context.Context, _ *mcp.CallToolRequest, q status.Query) (*mcp.CallToolResult, status.Result, error) {
 			result, err := backend.Get(ctx, q)
 			if err != nil {

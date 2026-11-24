@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
+	"net/netip"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -145,9 +146,9 @@ func TestDockerRelay(t *testing.T) {
 	probe(b, "tcp-blocked", aEndpoint)
 
 	bID := nodeID(b)
-	probe(a, "relay", bID, initialC, b)
+	probe(a, "relay", bID, initialC, b, bEndpoint)
 	run("docker", "restart", c)
-	probe(a, "relay", bID, initialC, b)
+	probe(a, "relay", bID, initialC, b, bEndpoint)
 	if got := nodeID(c); got != initialC {
 		t.Fatalf("C changed identity after restart: got %s, want %s", got, initialC)
 	}
@@ -183,16 +184,16 @@ func TestDockerNodeProbe(t *testing.T) {
 		}
 		t.Logf("%s %s", args[0], args[1])
 	case "relay":
-		if len(args) != 4 {
-			t.Fatal("relay probe needs target ID, relay ID and target hostname")
+		if len(args) != 5 {
+			t.Fatal("relay probe needs target ID, relay ID, target hostname and target address")
 		}
-		checkDockerRelay(ctx, t, args[1], args[2], args[3])
+		checkDockerRelay(ctx, t, args[1], args[2], args[3], args[4])
 	default:
 		t.Fatalf("unknown Docker probe %q", args[0])
 	}
 }
 
-func checkDockerRelay(ctx context.Context, t *testing.T, target, relay, hostname string) {
+func checkDockerRelay(ctx context.Context, t *testing.T, target, relay, hostname, endpoint string) {
 	t.Helper()
 	client := mcp.NewClient(&mcp.Implementation{Name: "docker-lab", Version: "1"}, nil)
 	session, err := client.Connect(ctx, &mcp.StreamableClientTransport{Endpoint: "http://127.0.0.1:8787/mcp"}, nil)
@@ -201,7 +202,7 @@ func checkDockerRelay(ctx context.Context, t *testing.T, target, relay, hostname
 	}
 	defer session.Close()
 	params := &mcp.CallToolParams{Name: "host_status", Arguments: map[string]any{
-		"target": map[string]string{"node_id": target}, "sections": []string{"memory"},
+		"target": map[string]string{"node_id": target}, "sections": []string{"memory", "swap", "network", "processes"},
 	}}
 	tick := time.NewTicker(200 * time.Millisecond)
 	defer tick.Stop()
@@ -223,7 +224,23 @@ func checkDockerRelay(ctx context.Context, t *testing.T, target, relay, hostname
 				got.Route.RelayID != relay || got.Sections.Memory == nil || got.Sections.Memory.TotalBytes == 0 {
 				t.Fatalf("unexpected relay result: %+v", got)
 			}
-			t.Logf("node %s reached through relay %s", target, relay)
+			host, _, err := net.SplitHostPort(endpoint)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var found bool
+			for _, iface := range got.Sections.Network {
+				for _, addr := range iface.Addresses {
+					if prefix, err := netip.ParsePrefix(addr); err == nil && prefix.Addr().String() == host {
+						found = true
+					}
+				}
+			}
+			if !found || got.Sections.Swap == nil || got.Sections.Processes == nil || len(got.Sections.Processes.Items) == 0 {
+				t.Fatalf("missing network, swap or processes from target: %+v", got)
+			}
+			t.Logf("node %s reached through relay %s with target IP %s and %d visible processes",
+				target, relay, host, got.Sections.Processes.Total)
 			return
 		}
 		select {

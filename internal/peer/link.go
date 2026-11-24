@@ -67,7 +67,7 @@ func (p *Peer) connect(endpoint, expectedID, seed string, ready func()) bool {
 }
 
 func hello(self status.Node, id string) *wire.Frame {
-	sections, _ := status.ValidateSections(nil)
+	sections := status.SupportedSections()
 	return &wire.Frame{Body: &wire.Frame_Hello{Hello: &wire.Hello{Version: 1, LinkId: id, Node: nodeToWire(self), Sections: sections}}}
 }
 

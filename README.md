@@ -48,6 +48,27 @@ MCP クライアントから A の `http://127.0.0.1:8787/mcp` に接続する�
 
 A と B が C を共通中継にする場合は、C で `peer.relay: true` と `peer.listen` を設定する。A と B のシードに C のアドレスを設定し、両方の `peer.trusted_relays` に C の起動ログに出る `node_id` を追加する。`peer.deny_nodes` に設定した ID の接続と照会を拒否する。設定変更はプロセスの起動時に適用する。
 
+## 状態照会
+
+`server_version` は、MCP クライアントが接続しているサーバーの名前とバージョンを返す。指定したピアのバージョンは `host_status` の `system.server_version` に含まれる。
+
+`host_status` で `sections` を省略すると `system`、`cpu`、`memory`、`filesystems` を取得する。追加項目は `sections` で指定する。
+
+```json
+{
+  "target": {"node_id": "対象ノードの ID"},
+  "sections": ["swap", "network", "processes"]
+}
+```
+
+| 項目 | 内容 |
+| --- | --- |
+| `swap` | Linux のスワップ有効状態と総量、使用量、空き容量（バイト）。 |
+| `network` | 対象ノードから見たインターフェース名、稼働フラグ、MTU、IPv4・IPv6 のプレフィックス付きアドレス。`peer.share_addresses: false` のノードはピア向け応答でアドレスを空にする。 |
+| `processes` | 対象から見えるプロセスの PID、名前、CPU 使用率、常駐メモリ。CPU 使用率が高い順に最大 100 件を表示し、採取件数、読み取れなかった件数、打ち切りの有無を添える。 |
+
+プロセスの CPU 使用率は約 1 秒間隔の 2 サンプルから計算し、1 コアを使い切ると 100% になる。計測中に起動したプロセスなど、差分を取れない場合は `cpu_percent` が `null` になる。Docker では採取元コンテナから見えるプロセスとインターフェースが返る。
+
 ## テスト
 
 ```sh

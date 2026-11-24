@@ -106,9 +106,10 @@ func serve(ctx context.Context, version string, c config) error {
 			return err
 		}
 	}
+	shareAddresses := c.Peer.ShareAddresses == nil || *c.Peer.ShareAddresses
 	readNode := func() (status.Node, error) {
 		info, err := state.LocalNode(c.Peer.Advertise, c.Peer.Relay)
-		if c.Peer.ShareAddresses != nil && !*c.Peer.ShareAddresses {
+		if !shareAddresses {
 			info.Addresses = []string{}
 		}
 		return info, err
@@ -141,13 +142,13 @@ func serve(ctx context.Context, version string, c config) error {
 		}
 		defer peerListener.Close()
 	}
-	p := peer.Start(ctx, peer.Config{Seeds: c.Peer.Seeds, DenyNodes: c.Peer.DenyNodes, TrustedRelays: c.Peer.TrustedRelays, Refresh: func() (bool, error) {
+	p := peer.Start(ctx, peer.Config{Seeds: c.Peer.Seeds, DenyNodes: c.Peer.DenyNodes, TrustedRelays: c.Peer.TrustedRelays, HideInterfaceAddresses: !shareAddresses, Refresh: func() (bool, error) {
 		info, err := readNode()
 		if err != nil {
 			return false, err
 		}
 		return dir.UpdateSelf(info)
-	}}, peerListener, dir, status.Native(c.Filesystems), nil, nil)
+	}}, peerListener, dir, status.Native(c.Filesystems, version), nil, nil)
 	defer p.Close()
 	fmt.Fprintf(os.Stderr, "host-status-mcp %s node_id=%s\n", version, dir.Self().ID)
 	if peerListener != nil {
