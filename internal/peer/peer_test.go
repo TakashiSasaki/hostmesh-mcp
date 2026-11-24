@@ -130,3 +130,50 @@ func TestDirect(t *testing.T) {
 		})
 	}
 }
+
+func TestSimultaneousDialsKeepOneLink(t *testing.T) {
+	aListener, bListener := testListener(t), testListener(t)
+	aDir := testDirectory(t, "a", nil, false)
+	bDir := testDirectory(t, "b", nil, false)
+	aID, bID := aDir.Self().ID, bDir.Self().ID
+
+	// Hold both seed dials until each peer has attempted a connection.
+	arrived := make(chan string, 2)
+	release := make(chan struct{})
+	gatedDial := func(ctx context.Context, addr string) (net.Conn, error) {
+		select {
+		case arrived <- addr:
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+		select {
+		case <-release:
+			return (&net.Dialer{}).DialContext(ctx, "tcp", addr)
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}
+	a := startTest(t, Config{Seeds: []string{bListener.Addr().String()}}, aListener, aDir, 111, gatedDial)
+	b := startTest(t, Config{Seeds: []string{aListener.Addr().String()}}, bListener, bDir, 222, gatedDial)
+
+	destinations := make(map[string]bool, 2)
+	timer := time.NewTimer(2 * time.Second)
+	defer timer.Stop()
+	for len(destinations) < 2 {
+		select {
+		case addr := <-arrived:
+			destinations[addr] = true
+		case <-timer.C:
+			t.Fatal("both seed dials did not start")
+		}
+	}
+	close(release)
+
+	winner := min(aID, bID)
+	waitFor(t, 5*time.Second, "one shared link from the preferred initiator", func() bool {
+		return hasSharedLink(a, b) && linkInitiator(a, bID) == winner && linkInitiator(b, aID) == winner
+	})
+	if got := mcpRead(t, a, bID); got.Route.Kind != "direct" || got.Node.ID != bID {
+		t.Fatalf("unexpected direct result after deduplication: %+v", got)
+	}
+}
