@@ -33,7 +33,7 @@ func New(version string, backend Backend) *mcp.Server {
 		func(_ context.Context, _ *mcp.CallToolRequest, _ struct{}) (*mcp.CallToolResult, hostList, error) {
 			return nil, hostList{Hosts: backend.List()}, nil
 		})
-	mcp.AddTool(server, &mcp.Tool{Name: "host_status", Description: "Read host status. Omit target for the local host. Select system, cpu, memory, filesystems, swap, network or processes. Processes reports the top 100 by sampled CPU usage.", Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true}},
+	mcp.AddTool(server, &mcp.Tool{Name: "host_status", Description: "Read host status. Omit target for the local host. Select system, cpu, memory, filesystems, swap, network, processes or storage. Storage lists mounts, filesystem types and block devices. Processes reports the top 100 by sampled CPU usage.", Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true}},
 		func(ctx context.Context, _ *mcp.CallToolRequest, q status.Query) (*mcp.CallToolResult, status.Result, error) {
 			result, err := backend.Get(ctx, q)
 			if err != nil {

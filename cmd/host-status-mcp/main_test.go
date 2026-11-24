@@ -63,7 +63,7 @@ func TestStdio(t *testing.T) {
 		if !ok || versionResult["version"] != strings.TrimSpace(versionFile) {
 			t.Fatalf("server_version returned %v", versionReply.StructuredContent)
 		}
-		reply, err := session.CallTool(ctx, &mcp.CallToolParams{Name: "host_status", Arguments: map[string]any{"sections": []string{"system", "cpu", "memory", "filesystems"}}})
+		reply, err := session.CallTool(ctx, &mcp.CallToolParams{Name: "host_status", Arguments: map[string]any{"sections": []string{"system", "cpu", "memory", "filesystems", "storage"}}})
 		if err != nil || reply.IsError {
 			t.Fatalf("status = %v, err = %v", reply, err)
 		}
@@ -81,6 +81,9 @@ func TestStdio(t *testing.T) {
 		if r.Sections.System == nil || r.Sections.System.ServerVersion != strings.TrimSpace(versionFile) || r.Sections.CPU == nil || r.Sections.Memory == nil || len(r.Sections.Filesystems) != 1 {
 			t.Fatalf("missing metric: %+v", r)
 		}
+		if !hasRootMount(r.Sections.Storage) {
+			t.Fatalf("missing local root mount: %+v", r.Errors)
+		}
 		if previous != "" && r.Node.ID != previous {
 			t.Fatalf("ID changed from %s to %s", previous, r.Node.ID)
 		}
@@ -89,4 +92,10 @@ func TestStdio(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+}
+
+func hasRootMount(storage *status.Storage) bool {
+	return storage != nil && storage.Mounts != nil && slices.ContainsFunc(*storage.Mounts, func(m status.Mount) bool {
+		return m.MountPoint == "/" && m.FilesystemType != ""
+	})
 }

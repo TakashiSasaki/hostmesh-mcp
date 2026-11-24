@@ -59,6 +59,8 @@ func Native(paths []string, version string) Collector {
 				result.Sections.Network, err = networkInterfaces(result.Errors)
 			case "processes":
 				result.Sections.Processes, err = collectProcesses(ctx, node.ID)
+			case "storage":
+				result.Sections.Storage, err = collectStorage(ctx, result.Errors)
 			case "filesystems":
 				for _, path := range paths {
 					if err := ctx.Err(); err != nil {

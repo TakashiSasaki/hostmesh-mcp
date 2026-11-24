@@ -63,6 +63,32 @@ type Filesystem struct {
 	AvailableBytes uint64 `json:"available_bytes"`
 }
 
+type Mount struct {
+	MountID        int    `json:"mount_id"`
+	MountPoint     string `json:"mount_point"`
+	Root           string `json:"root"`
+	Source         string `json:"source"`
+	FilesystemType string `json:"filesystem_type"`
+	ReadOnly       bool   `json:"read_only"`
+	BlockDeviceID  string `json:"block_device_id,omitempty"`
+}
+
+type BlockDevice struct {
+	ID               string   `json:"id"`
+	Name             string   `json:"name"`
+	Kind             string   `json:"kind"`
+	VolumeName       string   `json:"volume_name,omitempty"`
+	SizeBytes        *uint64  `json:"size_bytes,omitempty"`
+	ReadOnly         *bool    `json:"read_only,omitempty"`
+	ParentID         string   `json:"parent_id,omitempty"`
+	BackingDeviceIDs []string `json:"backing_device_ids,omitempty"`
+}
+
+type Storage struct {
+	Mounts       *[]Mount       `json:"mounts,omitempty"`
+	BlockDevices *[]BlockDevice `json:"block_devices,omitempty"`
+}
+
 type Swap struct {
 	Enabled    bool   `json:"enabled"`
 	TotalBytes uint64 `json:"total_bytes"`
@@ -97,6 +123,7 @@ type ProcessList struct {
 }
 
 type Sections struct {
+	Storage     *Storage     `json:"storage,omitempty"`
 	Swap        *Swap        `json:"swap,omitempty"`
 	Network     []Interface  `json:"network,omitempty"`
 	Processes   *ProcessList `json:"processes,omitempty"`
@@ -132,7 +159,7 @@ func Error(code, message string) *Failure {
 var standard = []string{"system", "cpu", "memory", "filesystems"}
 
 func SupportedSections() []string {
-	return slices.Concat(standard, []string{"swap", "network", "processes"})
+	return slices.Concat(standard, []string{"swap", "network", "processes", "storage"})
 }
 
 func ValidateSections(sections []string) ([]string, error) {

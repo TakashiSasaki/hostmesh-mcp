@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -175,5 +176,15 @@ func TestSimultaneousDialsKeepOneLink(t *testing.T) {
 	})
 	if got := mcpRead(t, a, bID); got.Route.Kind != "direct" || got.Node.ID != bID {
 		t.Fatalf("unexpected direct result after deduplication: %+v", got)
+	}
+}
+
+func TestOversizeStatusReply(t *testing.T) {
+	l := &link{ctx: t.Context(), tx: make(chan outgoingFrame, 1)}
+	mounts := []status.Mount{{MountPoint: strings.Repeat("x", maxFrame)}}
+	l.reply("mount-request", status.Result{Sections: status.Sections{Storage: &status.Storage{Mounts: &mounts}}}, nil)
+	got := (<-l.tx).frame.GetStatusResponse()
+	if got.Id != "mount-request" || got.ErrorCode != "RESULT_TOO_LARGE" || len(got.ResultJson) != 0 {
+		t.Fatalf("invalid oversized response error: ID %q, code %q, result size %d", got.Id, got.ErrorCode, len(got.ResultJson))
 	}
 }

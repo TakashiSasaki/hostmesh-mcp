@@ -202,7 +202,7 @@ func checkDockerRelay(ctx context.Context, t *testing.T, target, relay, hostname
 	}
 	defer session.Close()
 	params := &mcp.CallToolParams{Name: "host_status", Arguments: map[string]any{
-		"target": map[string]string{"node_id": target}, "sections": []string{"memory", "swap", "network", "processes"},
+		"target": map[string]string{"node_id": target}, "sections": []string{"memory", "swap", "network", "processes", "storage"},
 	}}
 	tick := time.NewTicker(200 * time.Millisecond)
 	defer tick.Stop()
@@ -238,6 +238,9 @@ func checkDockerRelay(ctx context.Context, t *testing.T, target, relay, hostname
 			}
 			if !found || got.Sections.Swap == nil || got.Sections.Processes == nil || len(got.Sections.Processes.Items) == 0 {
 				t.Fatalf("missing network, swap or processes from target: %+v", got)
+			}
+			if !hasRootMount(got.Sections.Storage) {
+				t.Fatalf("missing target root mount: %+v", got.Errors)
 			}
 			t.Logf("node %s reached through relay %s with target IP %s and %d visible processes",
 				target, relay, host, got.Sections.Processes.Total)

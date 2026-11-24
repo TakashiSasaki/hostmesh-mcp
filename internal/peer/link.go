@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/protobuf/proto"
 )
 
 type stream interface {
@@ -327,20 +328,26 @@ func (l *link) startRequest(req *wire.StatusRequest) bool {
 		}()
 		start := time.Now()
 		r, err := l.owner.serveRequest(ctx, l.remote, req)
+		err = l.reply(req.Id, r, err)
 		l.owner.audit(l.remote, req.TargetId, req.Sections, r, err, time.Since(start))
-		l.reply(req.Id, r, err)
 	}()
 	return true
 }
 
-func (l *link) reply(id string, r status.Result, err error) {
+func (l *link) reply(id string, r status.Result, err error) error {
 	resp := &wire.StatusResponse{Id: id}
+	frame := &wire.Frame{Body: &wire.Frame_StatusResponse{StatusResponse: resp}}
 	if err == nil {
 		resp.ResultJson, err = json.Marshal(r)
+		if err == nil && proto.Size(frame) > maxFrame {
+			err = status.Error("RESULT_TOO_LARGE", "status result exceeds the peer frame size limit")
+		}
 	}
 	if err != nil {
+		resp.ResultJson = nil
 		f := failure(err)
 		resp.ErrorCode, resp.ErrorMessage = f.Code, f.Message
 	}
-	l.send(&wire.Frame{Body: &wire.Frame_StatusResponse{StatusResponse: resp}})
+	l.send(frame)
+	return err
 }
