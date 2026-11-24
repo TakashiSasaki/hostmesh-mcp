@@ -492,9 +492,10 @@ type StatusResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	Id    string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	// JSON uses the same result fields and units as the host_status MCP tool.
-	ResultJson    []byte `protobuf:"bytes,2,opt,name=result_json,json=resultJson,proto3" json:"result_json,omitempty"`
-	ErrorCode     string `protobuf:"bytes,3,opt,name=error_code,json=errorCode,proto3" json:"error_code,omitempty"`
-	ErrorMessage  string `protobuf:"bytes,4,opt,name=error_message,json=errorMessage,proto3" json:"error_message,omitempty"`
+	ResultJson    []byte            `protobuf:"bytes,2,opt,name=result_json,json=resultJson,proto3" json:"result_json,omitempty"`
+	ErrorCode     string            `protobuf:"bytes,3,opt,name=error_code,json=errorCode,proto3" json:"error_code,omitempty"`
+	ErrorMessage  string            `protobuf:"bytes,4,opt,name=error_message,json=errorMessage,proto3" json:"error_message,omitempty"`
+	SectionErrors map[string]string `protobuf:"bytes,5,rep,name=section_errors,json=sectionErrors,proto3" json:"section_errors,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -555,6 +556,13 @@ func (x *StatusResponse) GetErrorMessage() string {
 		return x.ErrorMessage
 	}
 	return ""
+}
+
+func (x *StatusResponse) GetSectionErrors() map[string]string {
+	if x != nil {
+		return x.SectionErrors
+	}
+	return nil
 }
 
 type Cancel struct {
@@ -874,14 +882,18 @@ const file_proto_hoststatus_peer_v1_peer_proto_rawDesc = "" +
 	"\bsections\x18\x03 \x03(\tR\bsections\x12\x1d\n" +
 	"\n" +
 	"timeout_ms\x18\x04 \x01(\rR\ttimeoutMs\x12\x1b\n" +
-	"\torigin_id\x18\x05 \x01(\tR\boriginId\"\x85\x01\n" +
+	"\torigin_id\x18\x05 \x01(\tR\boriginId\"\xa5\x02\n" +
 	"\x0eStatusResponse\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1f\n" +
 	"\vresult_json\x18\x02 \x01(\fR\n" +
 	"resultJson\x12\x1d\n" +
 	"\n" +
 	"error_code\x18\x03 \x01(\tR\terrorCode\x12#\n" +
-	"\rerror_message\x18\x04 \x01(\tR\ferrorMessage\"\x18\n" +
+	"\rerror_message\x18\x04 \x01(\tR\ferrorMessage\x12\\\n" +
+	"\x0esection_errors\x18\x05 \x03(\v25.hoststatus.peer.v1.StatusResponse.SectionErrorsEntryR\rsectionErrors\x1a@\n" +
+	"\x12SectionErrorsEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x18\n" +
 	"\x06Cancel\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\"O\n" +
 	"\rRecordVersion\x12\x0e\n" +
@@ -911,7 +923,7 @@ func file_proto_hoststatus_peer_v1_peer_proto_rawDescGZIP() []byte {
 	return file_proto_hoststatus_peer_v1_peer_proto_rawDescData
 }
 
-var file_proto_hoststatus_peer_v1_peer_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
+var file_proto_hoststatus_peer_v1_peer_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
 var file_proto_hoststatus_peer_v1_peer_proto_goTypes = []any{
 	(*Frame)(nil),          // 0: hoststatus.peer.v1.Frame
 	(*Hello)(nil),          // 1: hoststatus.peer.v1.Hello
@@ -925,6 +937,7 @@ var file_proto_hoststatus_peer_v1_peer_proto_goTypes = []any{
 	(*RecordRequest)(nil),  // 9: hoststatus.peer.v1.RecordRequest
 	(*Records)(nil),        // 10: hoststatus.peer.v1.Records
 	(*Reachability)(nil),   // 11: hoststatus.peer.v1.Reachability
+	nil,                    // 12: hoststatus.peer.v1.StatusResponse.SectionErrorsEntry
 }
 var file_proto_hoststatus_peer_v1_peer_proto_depIdxs = []int32{
 	1,  // 0: hoststatus.peer.v1.Frame.hello:type_name -> hoststatus.peer.v1.Hello
@@ -937,15 +950,16 @@ var file_proto_hoststatus_peer_v1_peer_proto_depIdxs = []int32{
 	10, // 7: hoststatus.peer.v1.Frame.records:type_name -> hoststatus.peer.v1.Records
 	11, // 8: hoststatus.peer.v1.Frame.reachability:type_name -> hoststatus.peer.v1.Reachability
 	2,  // 9: hoststatus.peer.v1.Hello.node:type_name -> hoststatus.peer.v1.NodeRecord
-	7,  // 10: hoststatus.peer.v1.Inventory.versions:type_name -> hoststatus.peer.v1.RecordVersion
-	2,  // 11: hoststatus.peer.v1.Records.nodes:type_name -> hoststatus.peer.v1.NodeRecord
-	0,  // 12: hoststatus.peer.v1.Peering.Link:input_type -> hoststatus.peer.v1.Frame
-	0,  // 13: hoststatus.peer.v1.Peering.Link:output_type -> hoststatus.peer.v1.Frame
-	13, // [13:14] is the sub-list for method output_type
-	12, // [12:13] is the sub-list for method input_type
-	12, // [12:12] is the sub-list for extension type_name
-	12, // [12:12] is the sub-list for extension extendee
-	0,  // [0:12] is the sub-list for field type_name
+	12, // 10: hoststatus.peer.v1.StatusResponse.section_errors:type_name -> hoststatus.peer.v1.StatusResponse.SectionErrorsEntry
+	7,  // 11: hoststatus.peer.v1.Inventory.versions:type_name -> hoststatus.peer.v1.RecordVersion
+	2,  // 12: hoststatus.peer.v1.Records.nodes:type_name -> hoststatus.peer.v1.NodeRecord
+	0,  // 13: hoststatus.peer.v1.Peering.Link:input_type -> hoststatus.peer.v1.Frame
+	0,  // 14: hoststatus.peer.v1.Peering.Link:output_type -> hoststatus.peer.v1.Frame
+	14, // [14:15] is the sub-list for method output_type
+	13, // [13:14] is the sub-list for method input_type
+	13, // [13:13] is the sub-list for extension type_name
+	13, // [13:13] is the sub-list for extension extendee
+	0,  // [0:13] is the sub-list for field type_name
 }
 
 func init() { file_proto_hoststatus_peer_v1_peer_proto_init() }
@@ -970,7 +984,7 @@ func file_proto_hoststatus_peer_v1_peer_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_hoststatus_peer_v1_peer_proto_rawDesc), len(file_proto_hoststatus_peer_v1_peer_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   12,
+			NumMessages:   13,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

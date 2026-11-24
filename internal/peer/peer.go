@@ -117,15 +117,15 @@ func (p *Peer) List() []status.Host {
 		if p.denied(n.ID) {
 			continue
 		}
-		h := status.Host{Node: n, Connection: "unknown"}
+		h := status.Host{Node: n, IsLocal: n.ID == self, Connection: "unknown"}
 		if seen, ok := p.seen[n.ID]; ok {
 			h.LastSeenAt = &seen
 			h.Connection = "disconnected"
 		}
-		if n.ID == self || live(p.links[n.ID]) || p.relayForLocked(n.ID) != nil {
+		if h.IsLocal || live(p.links[n.ID]) || p.relayForLocked(n.ID) != nil {
 			h.Connection = "connected"
 		}
-		if n.ID == self {
+		if h.IsLocal {
 			now := time.Now().UTC()
 			h.LastSeenAt = &now
 		}

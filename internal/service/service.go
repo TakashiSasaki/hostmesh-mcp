@@ -17,7 +17,7 @@ type Service struct {
 
 func (s *Service) List() []status.Host {
 	now := time.Now().UTC()
-	return []status.Host{{Node: s.State.Self(), Connection: "connected", LastSeenAt: &now}}
+	return []status.Host{{Node: s.State.Self(), IsLocal: true, Connection: "connected", LastSeenAt: &now}}
 }
 
 func (s *Service) Get(ctx context.Context, q status.Query) (status.Result, error) {

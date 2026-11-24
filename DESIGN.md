@@ -59,11 +59,12 @@ sequenceDiagram
 | ツール | 入力 | 結果 |
 | --- | --- | --- |
 | `server_version` | `{}` | MCP の接続先サーバー名と、起動ログおよび `serverInfo.version` と同じ製品バージョン。 |
-| `host_list` | `{}` | ローカル台帳で既知かつ閲覧できるホストの ID、名前、OS、IP、照会元から見た接続状態、最終確認時刻。同期途中や分断中はその時点で把握している一覧を返す。 |
+| `host_list` | `{}` | ローカル台帳で既知かつ閲覧できるホストの ID、名前、OS、IP、照会元から見た接続状態、最終確認時刻。照会元自身を `is_local` で示す。同期途中や分断中はその時点で把握している一覧を返す。 |
 | `host_status` | `target` を省略するとローカル。指定する場合は `{"node_id":"…"}` または `{"hostname":"build","ip":"192.0.2.32"}`。`sections` を省略すると許可された標準項目を採取する。 | 対象ホスト、採取時刻、照会経路、要求された項目の値、項目ごとの採取エラー。 |
-| `process_kill` | ローカルの `processes` 一覧から取得した `pid` と `process_identity`。任意の `signal` は `TERM`（既定）または `KILL`。 | OS が受け付けたシグナルと対象 PID。 |
+| `process_status` | ローカルの `pid`。 | 1 プロセスの名前、CPU 使用率、常駐メモリと `process_identity`。 |
+| `process_kill` | `process_status` またはローカルの `processes` 一覧から取得した `pid` と `process_identity`。任意の `signal` は `TERM`（既定）または `KILL`。 | OS が受け付けたシグナルと対象 PID。 |
 
-`server_version`、`host_list`、`host_status` に `readOnlyHint: true` を設定する。`process_kill` は `readOnlyHint: false`、`destructiveHint: true` とする。成功時は出力スキーマに沿った `structuredContent` と互換用のテキストを返す。`HOST_NOT_FOUND`、`AMBIGUOUS_HOST`、`UNREACHABLE`、`DEADLINE_EXCEEDED` などの照会エラーは、対応するコードを含む `isError: true` のツール結果にする。`HOST_NOT_FOUND` は照会元の台帳で該当する対象を見つけられなかったこと、`UNREACHABLE` は対象への経路を利用できなかったことを示す。 [MCP のツール仕様](https://modelcontextprotocol.io/specification/2026-07-28/server/tools) [Go SDK のツール注釈](https://pkg.go.dev/github.com/modelcontextprotocol/go-sdk/mcp#ToolAnnotations)
+`server_version`、`host_list`、`host_status`、`process_status` に `readOnlyHint: true` を設定する。`process_kill` は `readOnlyHint: false`、`destructiveHint: true` とする。成功時は出力スキーマに沿った `structuredContent` と互換用のテキストを返す。`HOST_NOT_FOUND`、`AMBIGUOUS_HOST`、`UNREACHABLE`、`DEADLINE_EXCEEDED` などの照会エラーは、対応するコードを含む `isError: true` のツール結果にする。`HOST_NOT_FOUND` は照会元の台帳で該当する対象を見つけられなかったこと、`UNREACHABLE` は対象への経路を利用できなかったことを示す。 [MCP のツール仕様](https://modelcontextprotocol.io/specification/2026-07-28/server/tools) [Go SDK のツール注釈](https://pkg.go.dev/github.com/modelcontextprotocol/go-sdk/mcp#ToolAnnotations)
 
 `process_kill` は Linux PoC のローカル操作とする。stdio で登録し、ループバックの HTTP では `allow_process_kill` が有効な場合に登録する。プロセスの識別子にはノード ID、OS の起動 ID、PID 名前空間、PID、プロセスの開始時刻を使う。操作時は対象の pidfd を開き、識別子を照合したうえでその pidfd にシグナルを送る。識別子の不一致、送信権限の不足、PID 1 とサーバー自身への操作はエラーにする。ピア間の RPC は状態照会を扱う。 [Linux の pidfd](https://man7.org/linux/man-pages/man2/pidfd_open.2.html) [pidfd によるシグナル送信](https://man7.org/linux/man-pages/man2/pidfd_send_signal.2.html)
 
@@ -102,7 +103,7 @@ sequenceDiagram
 | `memory` | 物理メモリの `total_bytes` と `available_bytes`。利用可能量の算出方法は OS によって異なる。たとえば Linux はカーネルの `MemAvailable`、macOS の gopsutil は空きと非アクティブのページ数、Windows は `GlobalMemoryStatusEx` の可用物理メモリを使う。 [Linux の実装](https://github.com/shirou/gopsutil/blob/master/mem/mem_linux.go) [macOS の実装](https://github.com/shirou/gopsutil/blob/master/mem/mem_darwin.go) [Windows の実装](https://github.com/shirou/gopsutil/blob/master/mem/mem_windows.go) |
 | `filesystems` | 管理者が設定したローカルの絶対パスごとに `path`、`total_bytes`、`available_bytes` を返す。パスの例は Windows の `C:\`、macOS や Linux の `/`。容量の扱いは予約領域やクォータも含めて OS に従う。Windows は呼び出し元に利用可能な空き容量を使う。 [Windows の容量 API](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-getdiskfreespaceexw) |
 
-採取に失敗した項目はエラーを返し、取得できた値はそのまま返す。要求した項目を一つも採取できなかった場合は `COLLECTION_FAILED` を返す。共通の基本項目は上の項目とホスト情報。サービス管理、OS のイベントログ、cgroup、inode、UNIX のロードアベレージは、OS 固有の意味や API を持つ。
+採取に失敗した項目はエラーを返し、取得できた値はそのまま返す。要求した項目を一つも採取できなかった場合は `COLLECTION_FAILED` を返し、エラー内の `section_errors` に項目ごとの理由を含める。共通の基本項目は上の項目とホスト情報。サービス管理、OS のイベントログ、cgroup、inode、UNIX のロードアベレージは、OS 固有の意味や API を持つ。
 
 CPU とメモリには `gopsutil/v4` の `cpu` と `mem` を候補とする。稼働時間とディスク容量は、OS の読み取り API を呼ぶ小さな実装に分ける。確認した gopsutil v4.26.10 では、Windows の `disk` の初期化はレジストリ設定の変更を試み、`host` が取り込む `process` の初期化はデバッグ権限の有効化を試みる。採取の依存先はパッケージの初期化も含めて確認する。 [gopsutil v4](https://github.com/shirou/gopsutil) [Windows の disk 実装](https://github.com/shirou/gopsutil/blob/v4.26.10/disk/disk_windows.go#L66) [Windows の host 実装](https://github.com/shirou/gopsutil/blob/v4.26.10/host/host_windows.go) [Windows の process 実装](https://github.com/shirou/gopsutil/blob/v4.26.10/process/process_windows.go#L192)
 
@@ -112,7 +113,7 @@ Linux の `system` は `/etc/os-release` の `ID`、`NAME`、`VERSION`、`VERSIO
 
 `host_status` で `sections` を明示した場合、`swap`、`network`、`processes`、`storage`、`clock` を選べる。対象ピア自身が採取し、直結または許可済み中継で返す。`network` はピア接続の接続先情報に加え、対象ノードのローカルインターフェースごとの状態とアドレスを取得する。`peer.share_addresses: false` は台帳のアドレス広告と、ピア向けのインターフェース応答の両方に適用する。
 
-`processes` は PID とプロセスの開始時刻を比較して CPU 時間の差分を取り、1 コアを 100% とする使用率で並べる。最大 100 件を返し、差分が取れないプロセスは CPU 使用率を `null` にする。名前、PID、常駐メモリと、取得できる場合はプロセスの識別子 `process_identity` を返す。
+`processes` は PID とプロセスの開始時刻を比較して CPU 時間の差分を取り、1 コアを 100% とする使用率で並べる。最大 100 件を返し、差分が取れないプロセスは CPU 使用率を `null` にする。名前、PID、常駐メモリと、取得できる場合はプロセスの識別子 `process_identity` を返す。 `cpu` も指定された照会では両方のサンプルを並行して採取する。
 
 `swap` は Linux のスワップ総量・使用量・空き容量をバイトで返す。Windows のページファイル採取は Windows 対応時に設計する。
 

@@ -43,7 +43,7 @@ func TestStdio(t *testing.T) {
 			t.Fatalf("server advertised version %q", version)
 		}
 		tools, err := session.ListTools(ctx, nil)
-		if err != nil || len(tools.Tools) != 4 {
+		if err != nil || len(tools.Tools) != 5 {
 			t.Fatalf("tool list = %v, err = %v", tools, err)
 		}
 		for _, tool := range tools.Tools {
@@ -54,6 +54,13 @@ func TestStdio(t *testing.T) {
 				}
 			} else if tool.Annotations == nil || !tool.Annotations.ReadOnlyHint {
 				t.Fatalf("not read only: %s", tool.Name)
+			}
+			if tool.Name == "host_status" {
+				schema, err := json.Marshal(tool.InputSchema)
+				if err != nil || !strings.Contains(string(schema), "node_id alone") ||
+					!strings.Contains(string(schema), "Omit for system, cpu, memory and filesystems") {
+					t.Fatalf("host_status selector and defaults missing from input schema: %s, %v", schema, err)
+				}
 			}
 		}
 		versionReply, err := session.CallTool(ctx, &mcp.CallToolParams{Name: "server_version", Arguments: map[string]any{}})

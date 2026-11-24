@@ -54,6 +54,7 @@ message StatusResponse {
   bytes result_json = 2;
   string error_code = 3;
   string error_message = 4;
+  map<string, string> section_errors = 5;
 }
 
 message Cancel {

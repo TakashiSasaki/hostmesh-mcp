@@ -20,19 +20,20 @@ type Node struct {
 
 type Host struct {
 	Node
+	IsLocal    bool       `json:"is_local"`
 	Connection string     `json:"connection_state"`
 	LastSeenAt *time.Time `json:"last_seen_at"`
 }
 
 type Target struct {
-	ID       string `json:"node_id,omitempty"`
-	Hostname string `json:"hostname,omitempty"`
-	IP       string `json:"ip,omitempty"`
+	ID       string `json:"node_id,omitempty" jsonschema:"Exact node ID from host_list. Use by itself"`
+	Hostname string `json:"hostname,omitempty" jsonschema:"Hostname with an optional ip to disambiguate. Omit when supplying node_id"`
+	IP       string `json:"ip,omitempty" jsonschema:"IPv4 or IPv6 address used together with hostname"`
 }
 
 type Query struct {
-	Target   *Target  `json:"target,omitempty"`
-	Sections []string `json:"sections,omitempty"`
+	Target   *Target  `json:"target,omitempty" jsonschema:"Omit to query the MCP server node. Otherwise use node_id alone or hostname with an optional ip"`
+	Sections []string `json:"sections,omitempty" jsonschema:"Select one or more distinct sections: system, cpu, memory, filesystems, swap, network, processes, storage, clock. Omit for system, cpu, memory and filesystems"`
 }
 
 type Route struct {
@@ -155,9 +156,10 @@ type Result struct {
 }
 
 type Failure struct {
-	Code       string `json:"code"`
-	Message    string `json:"message"`
-	Candidates []Node `json:"candidates,omitempty"`
+	Code          string            `json:"code"`
+	Message       string            `json:"message"`
+	Candidates    []Node            `json:"candidates,omitempty"`
+	SectionErrors map[string]string `json:"section_errors,omitempty"`
 }
 
 func (e *Failure) Error() string {

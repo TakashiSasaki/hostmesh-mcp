@@ -30,8 +30,7 @@ func TestStdioProcessKill(t *testing.T) {
 			}
 			defer session.Close()
 
-			// A disposable CPU worker remains visible near the top of the process list.
-			worker := exec.CommandContext(ctx, "sh", "-c", "while :; do :; done")
+			worker := exec.CommandContext(ctx, "sleep", "30")
 			if err := worker.Start(); err != nil {
 				t.Fatal(err)
 			}
@@ -45,32 +44,22 @@ func TestStdioProcessKill(t *testing.T) {
 				<-done
 			}()
 
-			r, err := session.CallTool(ctx, &mcp.CallToolParams{Name: "host_status", Arguments: map[string]any{
-				"sections": []string{"processes"},
+			r, err := session.CallTool(ctx, &mcp.CallToolParams{Name: "process_status", Arguments: map[string]any{
+				"pid": worker.Process.Pid,
 			}})
 			if err != nil || r.IsError {
-				t.Fatalf("host_status = %+v, %v", r, err)
+				t.Fatalf("process_status = %+v, %v", r, err)
 			}
-			var snapshot status.Result
+			var process status.Process
 			data, err := json.Marshal(r.StructuredContent)
 			if err != nil {
 				t.Fatal(err)
 			}
-			if err := json.Unmarshal(data, &snapshot); err != nil {
+			if err := json.Unmarshal(data, &process); err != nil {
 				t.Fatal(err)
 			}
-			if snapshot.Sections.Processes == nil {
-				t.Fatalf("missing processes: %+v", snapshot.Errors)
-			}
-			var identity string
-			for _, p := range snapshot.Sections.Processes.Items {
-				if int(p.PID) == worker.Process.Pid {
-					identity = p.Identity
-					break
-				}
-			}
-			if identity == "" {
-				t.Fatal("worker did not have an identity in the local process list")
+			if int(process.PID) != worker.Process.Pid || process.Identity == "" || process.CPUPercent == nil {
+				t.Fatalf("missing worker details: %+v", process)
 			}
 
 			call := func(identity string) (*mcp.CallToolResult, error) {
@@ -89,7 +78,7 @@ func TestStdioProcessKill(t *testing.T) {
 				t.Fatalf("wrong identity error: %+v", r.Content)
 			}
 
-			r, err = call(identity)
+			r, err = call(process.Identity)
 			if err != nil || r.IsError {
 				t.Fatalf("process_kill = %+v, %v", r, err)
 			}
@@ -133,9 +122,15 @@ func TestHTTPProcessKillOptIn(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			found := false
+			found, readOnly := false, false
 			for _, tool := range tools.Tools {
 				found = found || tool.Name == "process_kill"
+				if tool.Name == "process_status" {
+					readOnly = tool.Annotations != nil && tool.Annotations.ReadOnlyHint
+				}
+			}
+			if !readOnly {
+				t.Fatal("HTTP process_status is missing or not read only")
 			}
 			if found != tc.allow {
 				t.Fatalf("process_kill advertised=%t, want %t", found, tc.allow)

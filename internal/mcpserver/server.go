@@ -29,7 +29,7 @@ func New(version string, backend Backend) *mcp.Server {
 		func(_ context.Context, _ *mcp.CallToolRequest, _ struct{}) (*mcp.CallToolResult, serverVersion, error) {
 			return nil, serverVersion{Name: serverName, Version: version}, nil
 		})
-	mcp.AddTool(server, &mcp.Tool{Name: "host_list", Description: "List known hosts and their connection state.", Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true}},
+	mcp.AddTool(server, &mcp.Tool{Name: "host_list", Description: "List known hosts and their connection state. is_local identifies the node serving this MCP connection.", Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true}},
 		func(_ context.Context, _ *mcp.CallToolRequest, _ struct{}) (*mcp.CallToolResult, hostList, error) {
 			return nil, hostList{Hosts: backend.List()}, nil
 		})

@@ -44,7 +44,7 @@ B の設定 `b.json` の例。
 
 別々の端末で `./host-status-mcp serve -config a.json` と `./host-status-mcp serve -config b.json` を実行する。上の設定は同じ Linux ホストで試すためのもの。別ホストで使う場合は `peer.listen` のアドレス、`peer.advertise`、`peer.seeds` に閉域で到達できるアドレスを使う。平文モードでは `node_id` と台帳を参加ピアの申告として扱う。
 
-MCP クライアントから A の `http://127.0.0.1:8787/mcp` に接続する。`host_list` で B の ID を確認し、`host_status` に `{"target":{"node_id":"B の ID"},"sections":["memory"]}` を渡す。接続は B が始めるが、A がその双方向リンクで B に採取を依頼できる。`target` を省略するとローカルを採取する。
+MCP クライアントから A の `http://127.0.0.1:8787/mcp` に接続する。`host_list` で B の ID を確認し、`host_status` に `{"target":{"node_id":"B の ID"},"sections":["memory"]}` を渡す。接続は B が始めるが、A がその双方向リンクで B に採取を依頼できる。`target` を省略するとローカルを採取する。 `host_list` の `is_local: true` は、MCP クライアントが接続しているノードを示す。同じホスト名を持つピアは `node_id` で指定できる。
 
 A と B が C を共通中継にする場合は、C で `peer.relay: true` と `peer.listen` を設定する。A と B のシードに C のアドレスを設定し、両方の `peer.trusted_relays` に C の起動ログに出る `node_id` を追加する。`peer.deny_nodes` に設定した ID の接続と照会を拒否する。設定変更はプロセスの起動時に適用する。
 
@@ -52,7 +52,7 @@ A と B が C を共通中継にする場合は、C で `peer.relay: true` と `
 
 `server_version` は、MCP クライアントが接続しているサーバーの名前とバージョンを返す。指定したピアのバージョンは `host_status` の `system.server_version` に含まれる。
 
-`host_status` で `sections` を省略すると `system`、`cpu`、`memory`、`filesystems` を取得する。追加項目は `sections` で指定する。
+`host_status` で `sections` を省略すると `system`、`cpu`、`memory`、`filesystems` を取得する。追加項目は `sections` で指定する。 要求した項目を一つも取得できなかった場合は、`COLLECTION_FAILED` の `section_errors` から失敗理由を確認できる。
 
 ```json
 {
@@ -69,7 +69,7 @@ A と B が C を共通中継にする場合は、C で `peer.relay: true` と `
 | `storage` | マウント先、マウント元、ファイルシステムの種類、読み取り専用状態と、Linux から見えるディスク、パーティション、論理ボリューム。 |
 | `clock` | 照会先の現在時刻、タイムゾーンの略称、UTC からのオフセット（秒）。 |
 
-プロセスの CPU 使用率は約 1 秒間隔の 2 サンプルから計算し、1 コアを使い切ると 100% になる。計測中に起動したプロセスなど、差分を取れない場合は `cpu_percent` が `null` になる。Docker では採取元コンテナから見えるプロセスとインターフェースが返る。
+プロセスの CPU 使用率は約 1 秒間隔の 2 サンプルから計算し、1 コアを使い切ると 100% になる。計測中に起動したプロセスなど、差分を取れない場合は `cpu_percent` が `null` になる。同じ照会で `cpu` と `processes` を指定すると、計測区間が重なる。Docker では採取元コンテナから見えるプロセスとインターフェースが返る。
 
 ## OS とカーネル
 
@@ -97,11 +97,15 @@ Linux コンテナではディストリビューションはコンテナ内の�
 
 空き容量を調べるには、既存の `filesystems` で設定済みパスを照会する。Linux コンテナではマウント一覧はコンテナから見える範囲になり、ブロックデバイス一覧はそのコンテナに公開された sysfs に従う。Windows のドライブ文字は Windows 対応時に扱う。
 
+## PID でプロセスを調べる
+
+`process_status` に `{"pid":1234}` を渡すと、接続先 MCP サーバーのローカルプロセスの名前、CPU 使用率、常駐メモリ、取得できる場合は `process_identity` を返す。CPU 使用率順の上位 100 件に入らない PID も照会できる。
+
 ## ローカルプロセスの終了
 
-`server_version`、`host_list`、`host_status` は読み取り専用として通知する。`process_kill` は破壊的な書き込みツールとして通知し、接続先 MCP サーバーの Linux プロセスにシグナルを送る。stdio では利用できる。ループバックの HTTP で有効にするには、設定のトップレベルに `"allow_process_kill": true` を追加する。
+`server_version`、`host_list`、`host_status`、`process_status` は読み取り専用として通知する。`process_kill` は破壊的な書き込みツールとして通知し、接続先 MCP サーバーの Linux プロセスにシグナルを送る。stdio では利用できる。ループバックの HTTP で有効にするには、設定のトップレベルに `"allow_process_kill": true` を追加する。
 
-`host_status` に `{"sections":["processes"]}` を渡し、ローカルの一覧から対象の `pid` と `process_identity` をコピーする。次の例の値を対象のプロセスに合わせて置き換える。
+`process_status` またはローカルの `host_status` のプロセス一覧から対象の `pid` と `process_identity` をコピーする。次の例の値を対象のプロセスに合わせて置き換える。
 
 ```json
 {"pid": 1234, "process_identity": "一覧で取得した識別子", "signal": "TERM"}

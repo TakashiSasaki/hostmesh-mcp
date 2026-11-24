@@ -287,7 +287,9 @@ func (l *link) query(ctx context.Context, target string, sections []string, orig
 	select {
 	case resp := <-reply:
 		if resp.ErrorCode != "" {
-			return status.Result{}, status.Error(resp.ErrorCode, resp.ErrorMessage)
+			return status.Result{}, &status.Failure{
+				Code: resp.ErrorCode, Message: resp.ErrorMessage, SectionErrors: resp.SectionErrors,
+			}
 		}
 		var r status.Result
 		if err := json.Unmarshal(resp.ResultJson, &r); err != nil || r.Node.ID != target || r.ObservedAt.IsZero() {
@@ -339,14 +341,17 @@ func (l *link) reply(id string, r status.Result, err error) error {
 	frame := &wire.Frame{Body: &wire.Frame_StatusResponse{StatusResponse: resp}}
 	if err == nil {
 		resp.ResultJson, err = json.Marshal(r)
-		if err == nil && proto.Size(frame) > maxFrame {
-			err = status.Error("RESULT_TOO_LARGE", "status result exceeds the peer frame size limit")
-		}
 	}
 	if err != nil {
 		resp.ResultJson = nil
 		f := failure(err)
+		resp.ErrorCode, resp.ErrorMessage, resp.SectionErrors = f.Code, f.Message, f.SectionErrors
+	}
+	if proto.Size(frame) > maxFrame {
+		f := status.Error("RESULT_TOO_LARGE", "status result exceeds the peer frame size limit")
+		resp.ResultJson, resp.SectionErrors = nil, nil
 		resp.ErrorCode, resp.ErrorMessage = f.Code, f.Message
+		err = f
 	}
 	l.send(frame)
 	return err

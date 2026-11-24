@@ -17,7 +17,7 @@ import (
 
 type ProcessKillRequest struct {
 	PID      int32  `json:"pid" jsonschema:"PID of one local process"`
-	Identity string `json:"process_identity" jsonschema:"Identity returned for the PID in a local processes snapshot"`
+	Identity string `json:"process_identity" jsonschema:"Identity returned for the PID by local process_status or the processes list"`
 	Signal   string `json:"signal,omitempty" jsonschema:"TERM (default) or KILL"`
 }
 
@@ -72,7 +72,7 @@ func KillProcess(ctx context.Context, nodeID string, req ProcessKillRequest) (Pr
 		return ProcessKillResult{}, Error("INVALID_ARGUMENT", "choose one process other than PID 1 or the MCP server itself")
 	}
 	if decoded, err := hex.DecodeString(req.Identity); err != nil || len(decoded) != sha256.Size {
-		return ProcessKillResult{}, Error("INVALID_ARGUMENT", "copy process_identity from the local process list")
+		return ProcessKillResult{}, Error("INVALID_ARGUMENT", "copy process_identity from local process_status or the process list")
 	}
 	name := strings.ToUpper(req.Signal)
 	var signal unix.Signal
@@ -114,14 +114,19 @@ func KillProcess(ctx context.Context, nodeID string, req ProcessKillRequest) (Pr
 }
 
 func processSignalError(err error) error {
+	if errors.Is(err, unix.ENOSYS) || errors.Is(err, unix.EOPNOTSUPP) {
+		return Error("UNSUPPORTED", "the OS does not support pidfd process signaling")
+	}
+	return processAccessError(err, "SIGNAL_FAILED")
+}
+
+func processAccessError(err error, fallbackCode string) error {
 	switch {
 	case errors.Is(err, os.ErrNotExist), errors.Is(err, unix.ESRCH):
 		return Error("PROCESS_NOT_FOUND", "process no longer exists")
 	case errors.Is(err, unix.EPERM), errors.Is(err, unix.EACCES):
 		return Error("FORBIDDEN", "the OS denied access to the process")
-	case errors.Is(err, unix.ENOSYS), errors.Is(err, unix.EOPNOTSUPP):
-		return Error("UNSUPPORTED", "the OS does not support pidfd process signaling")
 	default:
-		return Error("SIGNAL_FAILED", err.Error())
+		return Error(fallbackCode, err.Error())
 	}
 }

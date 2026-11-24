@@ -80,6 +80,7 @@ func run(ctx context.Context, args []string) error {
 	s := &service.Service{State: store, Collect: status.Native([]string{"/"}, version)}
 	fmt.Fprintf(os.Stderr, "host-status-mcp %s node_id=%s\n", version, store.Self().ID)
 	server := mcpserver.New(version, s)
+	mcpserver.AddProcessStatus(server, store.Self().ID)
 	mcpserver.AddProcessKill(server, store.Self().ID)
 	return server.Run(ctx, &mcp.StdioTransport{})
 }

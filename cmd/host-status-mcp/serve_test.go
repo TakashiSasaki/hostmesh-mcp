@@ -92,8 +92,10 @@ func startServeProcess(t *testing.T, c config) readyProcess {
 func TestServeRelayProcesses(t *testing.T) {
 	c := startServeProcess(t, config{Peer: peerConfig{Security: "plaintext", Listen: "127.0.0.1:0", Relay: true}})
 	cfg := peerConfig{Security: "plaintext", Seeds: []string{c.peer}, TrustedRelays: []string{c.id}}
-	b := startServeProcess(t, config{Peer: cfg})
-	a := startServeProcess(t, config{MCPListen: "127.0.0.1:0", Peer: cfg})
+	missingA := filepath.Join(t.TempDir(), "missing-a")
+	missingB := filepath.Join(t.TempDir(), "missing-b")
+	b := startServeProcess(t, config{Peer: cfg, Filesystems: []string{missingB}})
+	a := startServeProcess(t, config{MCPListen: "127.0.0.1:0", Peer: cfg, Filesystems: []string{missingA}})
 
 	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, a.mcp, nil)
 	if err != nil {
@@ -142,12 +144,54 @@ func TestServeRelayProcesses(t *testing.T) {
 				got.Sections.Memory == nil || got.Sections.Memory.TotalBytes == 0 {
 				t.Fatalf("unexpected native process result: %+v", got)
 			}
-			return
+			break
 		}
 		select {
 		case <-poll.C:
 		case <-ctx.Done():
 			t.Fatalf("native process relay did not become available: %v", reply.Content)
+		}
+	}
+
+	reply, err := session.CallTool(ctx, &mcp.CallToolParams{Name: "host_list"})
+	if err != nil || reply.IsError {
+		t.Fatalf("host_list = %+v, %v", reply, err)
+	}
+	var listed struct {
+		Hosts []status.Host `json:"hosts"`
+	}
+	data, err := json.Marshal(reply.StructuredContent)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(data, &listed); err != nil {
+		t.Fatal(err)
+	}
+	localFound, remoteFound := false, false
+	for _, host := range listed.Hosts {
+		if host.IsLocal != (host.ID == a.id) {
+			t.Fatalf("wrong local marker for %s", host.ID)
+		}
+		localFound = localFound || host.ID == a.id
+		remoteFound = remoteFound || host.ID == b.id
+	}
+	if !localFound || !remoteFound {
+		t.Fatalf("host_list is missing A or B: %+v", listed.Hosts)
+	}
+	for _, failureCase := range []struct{ nodeID, path string }{{"", missingA}, {b.id, missingB}} {
+		args := map[string]any{"sections": []string{"filesystems"}}
+		if failureCase.nodeID != "" {
+			args["target"] = map[string]string{"node_id": failureCase.nodeID}
+		}
+		reply, err := session.CallTool(ctx, &mcp.CallToolParams{Name: "host_status", Arguments: args})
+		if err != nil || !reply.IsError || len(reply.Content) != 1 {
+			t.Fatalf("host_status failure = %+v, %v", reply, err)
+		}
+		content, ok := reply.Content[0].(*mcp.TextContent)
+		var failure status.Failure
+		if !ok || json.Unmarshal([]byte(content.Text), &failure) != nil ||
+			failure.Code != "COLLECTION_FAILED" || failure.SectionErrors["filesystems:"+failureCase.path] == "" {
+			t.Fatalf("missing filesystem diagnostics for %q: %+v", failureCase.nodeID, reply.Content)
 		}
 	}
 }

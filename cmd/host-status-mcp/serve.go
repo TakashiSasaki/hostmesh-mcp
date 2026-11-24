@@ -167,6 +167,7 @@ func serve(ctx context.Context, version string, c config) error {
 		}
 	}
 	mcp := mcpserver.New(version, p)
+	mcpserver.AddProcessStatus(mcp, dir.Self().ID)
 	if c.AllowProcessKill {
 		mcpserver.AddProcessKill(mcp, dir.Self().ID)
 	}
