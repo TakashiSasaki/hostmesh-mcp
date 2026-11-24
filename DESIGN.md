@@ -108,11 +108,13 @@ CPU とメモリには `gopsutil/v4` の `cpu` と `mem` を候補とする。�
 
 ### Linux の追加採取項目
 
-`host_status` で `sections` を明示した場合、`swap`、`network`、`processes`、`storage` を選べる。対象ピア自身が採取し、直結または許可済み中継で返す。`network` はピア接続の接続先情報に加え、対象ノードのローカルインターフェースごとの状態とアドレスを取得する。`peer.share_addresses: false` は台帳のアドレス広告と、ピア向けのインターフェース応答の両方に適用する。
+`host_status` で `sections` を明示した場合、`swap`、`network`、`processes`、`storage`、`clock` を選べる。対象ピア自身が採取し、直結または許可済み中継で返す。`network` はピア接続の接続先情報に加え、対象ノードのローカルインターフェースごとの状態とアドレスを取得する。`peer.share_addresses: false` は台帳のアドレス広告と、ピア向けのインターフェース応答の両方に適用する。
 
 `processes` は PID とプロセスの開始時刻を比較して CPU 時間の差分を取り、1 コアを 100% とする使用率で並べる。最大 100 件を返し、差分が取れないプロセスは CPU 使用率を `null` にする。名前、PID、常駐メモリと、取得できる場合はプロセスの識別子 `process_identity` を返す。
 
 `swap` は Linux のスワップ総量・使用量・空き容量をバイトで返す。Windows のページファイル採取は Windows 対応時に設計する。
+
+`clock` は照会先で採取の完了時にシステム時計を一度読み、同じ時刻を `observed_at`、`clock.utc_time`、`clock.local_time` に使う。現地時刻、タイムゾーンの略称、UTC オフセットは採取プロセスで有効なタイムゾーンに従う。
 
 `storage.mounts` は `/proc/self/mountinfo` のマウント ID、マウント先、マウントされたサブツリーのルート、マウント元、ファイルシステム種別、読み取り専用状態を返す。マウント ID は採取元の名前空間におけるスナップショット内の値。ネットワーク共有や仮想ファイルシステムも含む。マウントオプションの値や自動マウント先の容量は採取しない。 [Linux の mountinfo](https://man7.org/linux/man-pages/man5/proc_pid_mountinfo.5.html)
 

@@ -40,7 +40,7 @@ TCP 負荷試験は資源の余裕があるホストや CI 上で別に行う。
 
 ## Docker で行う複数ノード試験
 
-`HOST_STATUS_DOCKER_TEST=1 go test -count=1 -v ./cmd/host-status-mcp -run '^TestDockerRelay$'` で実行する。ホストでビルドしたバイナリだけの rootfs を `docker image import` で試験イメージにし、3 ノードで共有する。独立した 2 つのブリッジで A・B 間の TCP 遮断と C 経由の MCP 照会を確認する。C を再起動し、同じノード ID で中継が復旧することも確認する。終了時に試験用のコンテナ、ネットワーク、イメージを除去する。
+`HOST_STATUS_DOCKER_TEST=1 go test -count=1 -v ./cmd/host-status-mcp -run '^TestDockerRelay$'` で実行する。ホストでビルドしたバイナリと試験用のタイムゾーンファイルを含む rootfs を `docker image import` で試験イメージにし、3 ノードで共有する。独立した 2 つのブリッジで A・B 間の TCP 遮断と C 経由の MCP 照会を確認する。B だけにタイムゾーンを設定し、時計を照会すると B の現地時刻が返ることを確認する。C を再起動し、同じノード ID で中継が復旧することも確認する。終了時に試験用のコンテナ、ネットワーク、イメージを除去する。
 
 2026 年 11 月 24 日の計測では、この Linux ARM64 ホストの `/` の空きは約 14.0 GiB。`/var/lib/docker`、`/var/lib/containerd`、Go の既定キャッシュはいずれも `/` に載っている。Docker はイメージ 6 件、使用中 5 件、イメージサイズの集計 30.97 GB と報告した。容量の判断には `df` の空きを使い、Docker の集計は消費先の把握に使う。既存ローカルイメージの正確な候補を確認した範囲では、`alpine` と `busybox` は見つからなかった。
 

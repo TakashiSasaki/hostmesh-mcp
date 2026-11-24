@@ -18,6 +18,7 @@ func Native(paths []string, version string) Collector {
 	return func(ctx context.Context, node Node, sections []string) (Result, error) {
 		result := Result{Node: node, Route: Route{Kind: "local"}, Errors: make(map[string]string)}
 		success := 0
+		includeClock := false
 		for _, section := range sections {
 			if err := ctx.Err(); err != nil {
 				return Result{}, err
@@ -30,6 +31,8 @@ func Native(paths []string, version string) Collector {
 				if err == nil {
 					result.Sections.System = &System{ServerVersion: version, UptimeSeconds: uint64(info.Uptime), ProcessArch: runtime.GOARCH}
 				}
+			case "clock":
+				includeClock = true
 			case "cpu":
 				start := time.Now()
 				var values []float64
@@ -93,7 +96,14 @@ func Native(paths []string, version string) Collector {
 		if success == 0 {
 			return Result{}, Error("COLLECTION_FAILED", "all requested sections failed")
 		}
-		result.ObservedAt = time.Now().UTC()
+		now := time.Now()
+		result.ObservedAt = now.UTC()
+		if includeClock {
+			zone, offset := now.Zone()
+			result.Sections.Clock = &Clock{
+				UTCTime: result.ObservedAt, LocalTime: now, TimezoneAbbreviation: zone, UTCOffsetSeconds: offset,
+			}
+		}
 		return result, nil
 	}
 }

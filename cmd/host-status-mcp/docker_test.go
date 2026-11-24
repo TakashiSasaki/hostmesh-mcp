@@ -3,14 +3,17 @@
 package main
 
 import (
+	"archive/zip"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io/fs"
 	"net"
 	"net/netip"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -52,7 +55,20 @@ func TestDockerRelay(t *testing.T) {
 	build("build", "-o", filepath.Join(imageDir, "host-status-mcp"), ".")
 	build("test", "-c", "-o", filepath.Join(imageDir, "probe"), ".")
 	rootfs := filepath.Join(root, "rootfs.tar")
-	run("tar", "-C", imageDir, "-cf", rootfs, "host-status-mcp", "probe")
+	// Give only B a different timezone so the response identifies the sampled node.
+	zones, err := zip.OpenReader(filepath.Join(runtime.GOROOT(), "lib", "time", "zoneinfo.zip"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer zones.Close()
+	zone, err := fs.ReadFile(zones, "Asia/Tokyo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(imageDir, "tokyo.zone"), zone, 0644); err != nil {
+		t.Fatal(err)
+	}
+	run("tar", "-C", imageDir, "-cf", rootfs, "host-status-mcp", "probe", "tokyo.zone")
 
 	prefix := "host-status-lab-" + uuid.NewString()[:12]
 	image, left, right := prefix+":test", prefix+"-left", prefix+"-right"
@@ -88,12 +104,15 @@ func TestDockerRelay(t *testing.T) {
 		if err := os.WriteFile(path, data, 0600); err != nil {
 			t.Fatal(err)
 		}
-		run("docker", "create", "--pull=never", "--name", name, "--hostname", name, "--network", network,
+		args := []string{"create", "--pull=never", "--name", name, "--hostname", name, "--network", network,
 			"--read-only", "--cap-drop=ALL", "--security-opt=no-new-privileges",
 			"--user", fmt.Sprintf("%d:%d", os.Getuid(), os.Getgid()),
 			"--log-driver=local", "--log-opt=max-size=1m", "--log-opt=max-file=2",
-			"--mount", "type=bind,source="+dir+",destination=/state",
-			image, "serve", "-config", "/state/config.json")
+			"--mount", "type=bind,source=" + dir + ",destination=/state"}
+		if name == b {
+			args = append(args, "--env", "TZ=/tokyo.zone")
+		}
+		run("docker", append(args, image, "serve", "-config", "/state/config.json")...)
 		t.Cleanup(func() { remove("container", "rm", "-f", name) })
 		run("docker", "start", name)
 	}
@@ -202,7 +221,7 @@ func checkDockerRelay(ctx context.Context, t *testing.T, target, relay, hostname
 	}
 	defer session.Close()
 	params := &mcp.CallToolParams{Name: "host_status", Arguments: map[string]any{
-		"target": map[string]string{"node_id": target}, "sections": []string{"memory", "swap", "network", "processes", "storage"},
+		"target": map[string]string{"node_id": target}, "sections": []string{"memory", "swap", "network", "processes", "storage", "clock"},
 	}}
 	tick := time.NewTicker(200 * time.Millisecond)
 	defer tick.Stop()
@@ -241,6 +260,10 @@ func checkDockerRelay(ctx context.Context, t *testing.T, target, relay, hostname
 			}
 			if !hasRootMount(got.Sections.Storage) {
 				t.Fatalf("missing target root mount: %+v", got.Errors)
+			}
+			checkClock(t, got)
+			if clock := got.Sections.Clock; clock.TimezoneAbbreviation != "JST" || clock.UTCOffsetSeconds != 9*60*60 {
+				t.Fatalf("B's timezone missing from relay result: %+v", clock)
 			}
 			t.Logf("node %s reached through relay %s with target IP %s and %d visible processes",
 				target, relay, host, got.Sections.Processes.Total)

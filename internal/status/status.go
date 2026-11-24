@@ -46,6 +46,13 @@ type System struct {
 	ProcessArch   string `json:"process_arch"`
 }
 
+type Clock struct {
+	UTCTime              time.Time `json:"utc_time"`
+	LocalTime            time.Time `json:"local_time"`
+	TimezoneAbbreviation string    `json:"timezone_abbreviation"`
+	UTCOffsetSeconds     int       `json:"utc_offset_seconds"`
+}
+
 type CPU struct {
 	UsagePercent   float64 `json:"usage_percent"`
 	SampleWindowMS int64   `json:"sample_window_ms"`
@@ -128,6 +135,7 @@ type Sections struct {
 	Network     []Interface  `json:"network,omitempty"`
 	Processes   *ProcessList `json:"processes,omitempty"`
 	System      *System      `json:"system,omitempty"`
+	Clock       *Clock       `json:"clock,omitempty"`
 	CPU         *CPU         `json:"cpu,omitempty"`
 	Memory      *Memory      `json:"memory,omitempty"`
 	Filesystems []Filesystem `json:"filesystems,omitempty"`
@@ -159,7 +167,7 @@ func Error(code, message string) *Failure {
 var standard = []string{"system", "cpu", "memory", "filesystems"}
 
 func SupportedSections() []string {
-	return slices.Concat(standard, []string{"swap", "network", "processes", "storage"})
+	return slices.Concat(standard, []string{"swap", "network", "processes", "storage", "clock"})
 }
 
 func ValidateSections(sections []string) ([]string, error) {

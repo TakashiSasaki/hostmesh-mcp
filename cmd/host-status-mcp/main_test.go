@@ -63,7 +63,8 @@ func TestStdio(t *testing.T) {
 		if !ok || versionResult["version"] != strings.TrimSpace(versionFile) {
 			t.Fatalf("server_version returned %v", versionReply.StructuredContent)
 		}
-		reply, err := session.CallTool(ctx, &mcp.CallToolParams{Name: "host_status", Arguments: map[string]any{"sections": []string{"system", "cpu", "memory", "filesystems", "storage"}}})
+		before := time.Now()
+		reply, err := session.CallTool(ctx, &mcp.CallToolParams{Name: "host_status", Arguments: map[string]any{"sections": []string{"system", "cpu", "memory", "filesystems", "storage", "clock"}}})
 		if err != nil || reply.IsError {
 			t.Fatalf("status = %v, err = %v", reply, err)
 		}
@@ -84,6 +85,10 @@ func TestStdio(t *testing.T) {
 		if !hasRootMount(r.Sections.Storage) {
 			t.Fatalf("missing local root mount: %+v", r.Errors)
 		}
+		checkClock(t, r)
+		if r.ObservedAt.Before(before) || r.ObservedAt.After(time.Now()) {
+			t.Fatalf("clock reading %s is outside the call interval", r.ObservedAt)
+		}
 		if previous != "" && r.Node.ID != previous {
 			t.Fatalf("ID changed from %s to %s", previous, r.Node.ID)
 		}
@@ -98,4 +103,18 @@ func hasRootMount(storage *status.Storage) bool {
 	return storage != nil && storage.Mounts != nil && slices.ContainsFunc(*storage.Mounts, func(m status.Mount) bool {
 		return m.MountPoint == "/" && m.FilesystemType != ""
 	})
+}
+
+func checkClock(t *testing.T, r status.Result) {
+	t.Helper()
+	clock := r.Sections.Clock
+	if clock == nil {
+		t.Fatalf("missing clock section: %+v", r.Errors)
+	}
+	_, utcOffset := clock.UTCTime.Zone()
+	_, localOffset := clock.LocalTime.Zone()
+	if !clock.UTCTime.Equal(r.ObservedAt) || !clock.LocalTime.Equal(clock.UTCTime) ||
+		utcOffset != 0 || localOffset != clock.UTCOffsetSeconds || clock.TimezoneAbbreviation == "" {
+		t.Fatalf("inconsistent clock reading: %+v, observed_at %s", clock, r.ObservedAt)
+	}
 }
