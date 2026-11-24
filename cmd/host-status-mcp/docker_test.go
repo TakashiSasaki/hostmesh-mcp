@@ -69,6 +69,10 @@ func TestDockerRelay(t *testing.T) {
 		t.Fatal(err)
 	}
 	run("tar", "-C", imageDir, "-cf", rootfs, "host-status-mcp", "probe", "tokyo.zone")
+	osRelease := filepath.Join(root, "test-os-release")
+	if err := os.WriteFile(osRelease, []byte("ID=lab-linux\nNAME=\"Lab Linux\"\nVERSION_ID=2.4\nVERSION=\"2.4 (Test)\"\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	prefix := "host-status-lab-" + uuid.NewString()[:12]
 	image, left, right := prefix+":test", prefix+"-left", prefix+"-right"
@@ -110,7 +114,7 @@ func TestDockerRelay(t *testing.T) {
 			"--log-driver=local", "--log-opt=max-size=1m", "--log-opt=max-file=2",
 			"--mount", "type=bind,source=" + dir + ",destination=/state"}
 		if name == b {
-			args = append(args, "--env", "TZ=/tokyo.zone")
+			args = append(args, "--env", "TZ=/tokyo.zone", "--mount", "type=bind,source="+osRelease+",destination=/etc/os-release,readonly")
 		}
 		run("docker", append(args, image, "serve", "-config", "/state/config.json")...)
 		t.Cleanup(func() { remove("container", "rm", "-f", name) })
@@ -221,7 +225,7 @@ func checkDockerRelay(ctx context.Context, t *testing.T, target, relay, hostname
 	}
 	defer session.Close()
 	params := &mcp.CallToolParams{Name: "host_status", Arguments: map[string]any{
-		"target": map[string]string{"node_id": target}, "sections": []string{"memory", "swap", "network", "processes", "storage", "clock"},
+		"target": map[string]string{"node_id": target}, "sections": []string{"system", "memory", "swap", "network", "processes", "storage", "clock"},
 	}}
 	tick := time.NewTicker(200 * time.Millisecond)
 	defer tick.Stop()
@@ -260,6 +264,11 @@ func checkDockerRelay(ctx context.Context, t *testing.T, target, relay, hostname
 			}
 			if !hasRootMount(got.Sections.Storage) {
 				t.Fatalf("missing target root mount: %+v", got.Errors)
+			}
+			checkKernelRelease(t, got.Sections.System)
+			if system := got.Sections.System; system.OSID != "lab-linux" || system.OSName != "Lab Linux" ||
+				system.OSVersionID != "2.4" || system.OSVersion != "2.4 (Test)" {
+				t.Fatalf("B's distribution missing from relay result: %+v", system)
 			}
 			checkClock(t, got)
 			if clock := got.Sections.Clock; clock.TimezoneAbbreviation != "JST" || clock.UTCOffsetSeconds != 9*60*60 {

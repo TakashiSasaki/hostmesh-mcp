@@ -44,6 +44,11 @@ type System struct {
 	ServerVersion string `json:"server_version,omitempty"`
 	UptimeSeconds uint64 `json:"uptime_seconds"`
 	ProcessArch   string `json:"process_arch"`
+	OSID          string `json:"os_id,omitempty"`
+	OSName        string `json:"os_name,omitempty"`
+	OSVersion     string `json:"os_version,omitempty"`
+	OSVersionID   string `json:"os_version_id,omitempty"`
+	KernelRelease string `json:"kernel_release,omitempty"`
 }
 
 type Clock struct {

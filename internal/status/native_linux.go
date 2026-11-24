@@ -26,11 +26,7 @@ func Native(paths []string, version string) Collector {
 			var err error
 			switch section {
 			case "system":
-				var info unix.Sysinfo_t
-				err = unix.Sysinfo(&info)
-				if err == nil {
-					result.Sections.System = &System{ServerVersion: version, UptimeSeconds: uint64(info.Uptime), ProcessArch: runtime.GOARCH}
-				}
+				result.Sections.System, err = collectSystem(version, result.Errors)
 			case "clock":
 				includeClock = true
 			case "cpu":

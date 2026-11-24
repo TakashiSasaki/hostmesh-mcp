@@ -71,6 +71,19 @@ A と B が C を共通中継にする場合は、C で `peer.relay: true` と `
 
 プロセスの CPU 使用率は約 1 秒間隔の 2 サンプルから計算し、1 コアを使い切ると 100% になる。計測中に起動したプロセスなど、差分を取れない場合は `cpu_percent` が `null` になる。Docker では採取元コンテナから見えるプロセスとインターフェースが返る。
 
+## OS とカーネル
+
+`host_status` に `{"sections":["system"]}` を渡す。別ホストを調べる場合は `target` を指定する。
+
+| フィールド | 内容 |
+| --- | --- |
+| `node.os` | OS の種類。Linux では `linux`。 |
+| `sections.system.os_id` / `os_name` | ディストリビューションの ID と表示名。 |
+| `sections.system.os_version` / `os_version_id` | ディストリビューションの表示用バージョンとバージョン ID。取得できる値を返す。 |
+| `sections.system.kernel_release` | 実行中のカーネルのリリース番号。`uname -r` と同じ値。 |
+
+Linux コンテナではディストリビューションはコンテナ内の情報で、カーネルはコンテナが使用しているもの。ディストリビューション情報がない場合は、対応するフィールドを省略する。
+
 ## ホストの時計
 
 `host_status` に `{"sections":["clock"]}` を渡す。別ホストの時計を読む場合は `target` を指定する。`utc_time` と `local_time` は同じ瞬間を UTC と現地時刻で表した値。`timezone_abbreviation` と `utc_offset_seconds` は、採取元の MCP サーバープロセスで有効なタイムゾーンに従う。

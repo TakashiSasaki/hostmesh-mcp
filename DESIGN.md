@@ -97,7 +97,7 @@ sequenceDiagram
 
 | 項目 | 公開する値と定義 |
 | --- | --- |
-| `system` | OS が示す起動からの経過秒数 `uptime_seconds` と、実行バイナリのアーキテクチャ `process_arch`、採取元の `server_version`。`process_arch` は `runtime.GOARCH` の値。 |
+| `system` | OS が示す起動からの経過秒数 `uptime_seconds` と、実行バイナリのアーキテクチャ `process_arch`、採取元の `server_version`。`process_arch` は `runtime.GOARCH` の値。取得できる場合は OS の ID、名前、表示用バージョン、バージョン ID、カーネルのリリース番号も返す。 |
 | `cpu` | OS が提供する CPU 時間カウンターを一定区間で測った集計使用率 `usage_percent` と測定区間 `sample_window_ms`。`logical_cpus_available` は `runtime.NumCPU()` が返す、起動時にこのプロセスが使える論理 CPU 数。 [gopsutil の CPU 採取](https://pkg.go.dev/github.com/shirou/gopsutil/v4/cpu#PercentWithContext) [Go の runtime.NumCPU](https://pkg.go.dev/runtime#NumCPU) |
 | `memory` | 物理メモリの `total_bytes` と `available_bytes`。利用可能量の算出方法は OS によって異なる。たとえば Linux はカーネルの `MemAvailable`、macOS の gopsutil は空きと非アクティブのページ数、Windows は `GlobalMemoryStatusEx` の可用物理メモリを使う。 [Linux の実装](https://github.com/shirou/gopsutil/blob/master/mem/mem_linux.go) [macOS の実装](https://github.com/shirou/gopsutil/blob/master/mem/mem_darwin.go) [Windows の実装](https://github.com/shirou/gopsutil/blob/master/mem/mem_windows.go) |
 | `filesystems` | 管理者が設定したローカルの絶対パスごとに `path`、`total_bytes`、`available_bytes` を返す。パスの例は Windows の `C:\`、macOS や Linux の `/`。容量の扱いは予約領域やクォータも含めて OS に従う。Windows は呼び出し元に利用可能な空き容量を使う。 [Windows の容量 API](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-getdiskfreespaceexw) |
@@ -105,6 +105,8 @@ sequenceDiagram
 採取に失敗した項目はエラーを返し、取得できた値はそのまま返す。要求した項目を一つも採取できなかった場合は `COLLECTION_FAILED` を返す。共通の基本項目は上の項目とホスト情報。サービス管理、OS のイベントログ、cgroup、inode、UNIX のロードアベレージは、OS 固有の意味や API を持つ。
 
 CPU とメモリには `gopsutil/v4` の `cpu` と `mem` を候補とする。稼働時間とディスク容量は、OS の読み取り API を呼ぶ小さな実装に分ける。確認した gopsutil v4.26.10 では、Windows の `disk` の初期化はレジストリ設定の変更を試み、`host` が取り込む `process` の初期化はデバッグ権限の有効化を試みる。採取の依存先はパッケージの初期化も含めて確認する。 [gopsutil v4](https://github.com/shirou/gopsutil) [Windows の disk 実装](https://github.com/shirou/gopsutil/blob/v4.26.10/disk/disk_windows.go#L66) [Windows の host 実装](https://github.com/shirou/gopsutil/blob/v4.26.10/host/host_windows.go) [Windows の process 実装](https://github.com/shirou/gopsutil/blob/v4.26.10/process/process_windows.go#L192)
+
+Linux の `system` は `/etc/os-release` の `ID`、`NAME`、`VERSION`、`VERSION_ID` を読む。ファイルがなければ `/usr/lib/os-release` を使う。名前は `PRETTY_NAME`、表示用バージョンは `VERSION_ID` でも補える。カーネルのリリース番号は `uname(2)` から採取する。メタデータのないコンテナではディストリビューションの項目を省略する。 [os-release の仕様](https://www.freedesktop.org/software/systemd/man/latest/os-release.html) [Linux の uname(2)](https://man7.org/linux/man-pages/man2/uname.2.html)
 
 ### Linux の追加採取項目
 

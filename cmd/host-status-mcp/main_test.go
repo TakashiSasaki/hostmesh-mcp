@@ -11,6 +11,7 @@ import (
 
 	"github.com/TakashiSasaki/host-status-mcp/internal/status"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"golang.org/x/sys/unix"
 )
 
 func TestEntrypoint(t *testing.T) {
@@ -82,6 +83,7 @@ func TestStdio(t *testing.T) {
 		if r.Sections.System == nil || r.Sections.System.ServerVersion != strings.TrimSpace(versionFile) || r.Sections.CPU == nil || r.Sections.Memory == nil || len(r.Sections.Filesystems) != 1 {
 			t.Fatalf("missing metric: %+v", r)
 		}
+		checkKernelRelease(t, r.Sections.System)
 		if !hasRootMount(r.Sections.Storage) {
 			t.Fatalf("missing local root mount: %+v", r.Errors)
 		}
@@ -116,5 +118,17 @@ func checkClock(t *testing.T, r status.Result) {
 	if !clock.UTCTime.Equal(r.ObservedAt) || !clock.LocalTime.Equal(clock.UTCTime) ||
 		utcOffset != 0 || localOffset != clock.UTCOffsetSeconds || clock.TimezoneAbbreviation == "" {
 		t.Fatalf("inconsistent clock reading: %+v, observed_at %s", clock, r.ObservedAt)
+	}
+}
+
+func checkKernelRelease(t *testing.T, system *status.System) {
+	t.Helper()
+	var uts unix.Utsname
+	if err := unix.Uname(&uts); err != nil {
+		t.Fatal(err)
+	}
+	want := unix.ByteSliceToString(uts.Release[:])
+	if system == nil || system.KernelRelease != want {
+		t.Fatalf("system = %+v, want kernel_release %q", system, want)
 	}
 }
