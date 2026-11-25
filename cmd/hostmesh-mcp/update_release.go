@@ -26,6 +26,7 @@ import (
 )
 
 type updateSettings struct {
+	Source        string `json:"source,omitempty"`
 	ManifestURL   string `json:"manifest_url"`
 	PublicKeyFile string `json:"public_key_file"`
 	Binary        string `json:"binary"`
@@ -47,8 +48,8 @@ func readUpdateSettings(path string) (updateSettings, error) {
 	if err := decodeUpdateJSON(b, &c); err != nil {
 		return c, err
 	}
-	if !filepath.IsAbs(c.Binary) || !filepath.IsAbs(c.PublicKeyFile) {
-		return c, errors.New("set absolute binary and public_key_file paths")
+	if !filepath.IsAbs(c.Binary) {
+		return c, errors.New("set an absolute binary path")
 	}
 	if c.PeerConfig != "" {
 		if !filepath.IsAbs(c.PeerConfig) || c.Unit != "" || c.UserService {
@@ -60,8 +61,20 @@ func readUpdateSettings(path string) (updateSettings, error) {
 	} else if !unitName.MatchString(c.Unit) || c.CheckInterval != "" {
 		return c, errors.New("set systemd_unit ending in .service, or peer_config for supervise")
 	}
-	if _, err := updateURL(c.ManifestURL); err != nil {
-		return c, err
+	switch c.Source {
+	case "github":
+		if c.ManifestURL != "" || c.PublicKeyFile != "" {
+			return c, errors.New("github source cannot be combined with manifest_url or public_key_file")
+		}
+	case "", "manifest":
+		if !filepath.IsAbs(c.PublicKeyFile) {
+			return c, errors.New("set an absolute public_key_file path for manifest updates")
+		}
+		if _, err := updateURL(c.ManifestURL); err != nil {
+			return c, err
+		}
+	default:
+		return c, fmt.Errorf("unknown update source %q", c.Source)
 	}
 	if c.Observer != "" {
 		if _, err := updateURL(c.Observer); err != nil {
@@ -163,6 +176,9 @@ func fetchUpdate(ctx context.Context, raw string, dst io.Writer, limit int64) (i
 }
 
 func loadRelease(ctx context.Context, c updateSettings) (string, releaseArtifact, error) {
+	if c.Source == "github" {
+		return githubRelease(ctx)
+	}
 	var a releaseArtifact
 	pub, err := os.ReadFile(c.PublicKeyFile)
 	if err != nil {

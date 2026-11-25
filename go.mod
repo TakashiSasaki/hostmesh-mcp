@@ -6,9 +6,11 @@ toolchain go1.27.3
 
 require (
 	github.com/ebitengine/purego v0.11.2
+	github.com/golang/snappy v1.0.0
 	github.com/google/uuid v1.6.0
 	github.com/modelcontextprotocol/go-sdk v1.7.0
 	github.com/shirou/gopsutil/v4 v4.26.10
+	github.com/sigstore/sigstore-go v1.4.0
 	github.com/smallstep/pkcs7 v0.2.3
 	golang.org/x/sys v0.49.0
 	google.golang.org/grpc v1.85.0
@@ -46,7 +48,6 @@ require (
 	github.com/go-openapi/swag/yamlutils v0.29.2 // indirect
 	github.com/go-openapi/validate v1.0.0 // indirect
 	github.com/go-viper/mapstructure/v2 v2.5.0 // indirect
-	github.com/golang/snappy v1.0.0 // indirect
 	github.com/google/certificate-transparency-go v1.4.0 // indirect
 	github.com/google/go-containerregistry v0.22.1 // indirect
 	github.com/google/jsonschema-go v0.4.3 // indirect
@@ -66,7 +67,6 @@ require (
 	github.com/sigstore/rekor v1.5.5 // indirect
 	github.com/sigstore/rekor-tiles/v2 v2.4.0 // indirect
 	github.com/sigstore/sigstore v1.11.1 // indirect
-	github.com/sigstore/sigstore-go v1.4.0 // indirect
 	github.com/sigstore/timestamp-authority/v2 v2.2.0 // indirect
 	github.com/theupdateframework/go-tuf/v2 v2.4.2 // indirect
 	github.com/tklauser/go-sysconf v0.4.0 // indirect
