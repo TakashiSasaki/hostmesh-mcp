@@ -115,7 +115,7 @@ func TestSystemdUpdate(t *testing.T) {
 	work := t.TempDir()
 	f := testReleaseFeed(t)
 	c := f.config
-	c.Binary = filepath.Join(work, "host-status-mcp")
+	c.Binary = filepath.Join(work, "hostmesh-mcp")
 	c.Unit = "host-status-test-" + uuid.NewString() + ".service"
 	read := func(path string) []byte {
 		t.Helper()
@@ -141,7 +141,7 @@ func TestSystemdUpdate(t *testing.T) {
 		}
 		return b
 	}
-	write("host-status-mcp", read(old), 0700)
+	write("hostmesh-mcp", read(old), 0700)
 	vOld, err := commandOutput(t.Context(), "", old, "version")
 	if err != nil {
 		t.Fatal(err)
@@ -292,7 +292,7 @@ func TestSystemdUpdate(t *testing.T) {
 	if err := ctl(t.Context(), "stop", c.Unit); err != nil {
 		t.Fatal(err)
 	}
-	write("host-status-mcp", read(old), 0700)
+	write("hostmesh-mcp", read(old), 0700)
 	write("peer.json", asJSON(config{StateDir: stateDir, Peer: p}), 0600)
 	target.Endpoint = ""
 	if err := target.startAndVerify(t.Context(), target, c.Binary, vOld, false); err != nil {

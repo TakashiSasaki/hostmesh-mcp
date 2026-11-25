@@ -9,7 +9,7 @@ import (
 	"slices"
 	"time"
 
-	wire "github.com/TakashiSasaki/host-status-mcp/proto/hoststatus/peer/v1"
+	wire "github.com/TakashiSasaki/hostmesh-mcp/proto/hoststatus/peer/v1"
 	"github.com/google/uuid"
 )
 

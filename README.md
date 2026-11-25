@@ -1,19 +1,19 @@
-# host-status-mcp
+# hostmesh-mcp
 
 Linux・macOS・Windows x64 対応。MCP からローカルまたは別ホストの OS、稼働時間、CPU、メモリ、ファイルシステム容量を取得する。ノードは台帳を交換し、到達できるペアを自動で直結する。共通の中継を許可すると、直結できないペアも照会できる。
 
 macOS 版は Apple Silicon と Intel に対応する。`stdio` と `serve` の両方でプロセス情報を読み取れる。`process_kill` は登録せず、`server_config.allow_process_kill` は常に `false` を返す。ディスク一覧には APFS コンテナとボリュームを含む。コンテナ内の空き容量は共有される。バイナリの自動更新と `supervise` は Linux 用。mTLS の証明書更新は両 OS で利用できる。
 
-Windows 版は Windows ホスト上で動く読み取り専用の `host-status-mcp.exe`。プロセスの CPU 使用率とワーキングセット、物理メモリ、実際のページファイル別使用量（`swap.page_files`）、システムドライブなどを取得する。
+Windows 版は Windows ホスト上で動く読み取り専用の `hostmesh-mcp.exe`。プロセスの CPU 使用率とワーキングセット、物理メモリ、実際のページファイル別使用量（`swap.page_files`）、システムドライブなどを取得する。
 
 [インストールガイド（Linux・macOS・Windows）](INSTALL.md)
 
 ## ビルドと単体起動
 
 ```sh
-go build -o host-status-mcp ./cmd/host-status-mcp
-./host-status-mcp version
-./host-status-mcp stdio
+go build -o hostmesh-mcp ./cmd/hostmesh-mcp
+./hostmesh-mcp version
+./hostmesh-mcp stdio
 ```
 
 MCP クライアントのコマンド設定では、実行ファイルへの絶対パスと引数 `stdio` を指定する。既定の状態ディレクトリは `os.UserConfigDir()` 配下の `host-status-mcp/state`。同じマシンで複数ノードを動かすときは、ノードごとに `-state-dir` または設定の `state_dir` を指定する。
@@ -23,20 +23,20 @@ MCP クライアントのコマンド設定では、実行ファイルへの絶�
 `config example` は編集用の JSON を標準出力に表示する。
 
 ```sh
-./host-status-mcp config example                     # 待ち受けるピア
-./host-status-mcp config example -join               # 既存のピアに発信するノード
-./host-status-mcp config example -mtls               # mTLS で待ち受けるピア
-./host-status-mcp config example -join -mtls > b.json
+./hostmesh-mcp config example                     # 待ち受けるピア
+./hostmesh-mcp config example -join               # 既存のピアに発信するノード
+./hostmesh-mcp config example -mtls               # mTLS で待ち受けるピア
+./hostmesh-mcp config example -join -mtls > b.json
 ```
 
-例のアドレスは `127.0.0.1:7443`。別ホスト間で使うときは、待ち受け側の `listen` に自分の閉域アドレス、`advertise` と参加側の `seeds` に参加側から到達できる待ち受け先を指定する。`-mtls` は CA 証明書・ノード証明書・秘密鍵のパスを追加する。各ノードのファイルに合わせて編集し、`./host-status-mcp serve -config b.json` で起動する。各項目の意味は `./host-status-mcp config example -help` でも確認できる。
+例のアドレスは `127.0.0.1:7443`。別ホスト間で使うときは、待ち受け側の `listen` に自分の閉域アドレス、`advertise` と参加側の `seeds` に参加側から到達できる待ち受け先を指定する。`-mtls` は CA 証明書・ノード証明書・秘密鍵のパスを追加する。各ノードのファイルに合わせて編集し、`./hostmesh-mcp serve -config b.json` で起動する。各項目の意味は `./hostmesh-mcp config example -help` でも確認できる。
 
 同じホスト上で両方のひな型を使う場合は、次の例のようにノードごとに異なる `state_dir` を指定し、参加側で `"mcp_listen": ""` または別のループバックポートを設定する。
 
 ## 設定ファイルを検査する
 
 ```sh
-./host-status-mcp config check -config peer.json
+./hostmesh-mcp config check -config peer.json
 ```
 
 `serve` と共通の規則で JSON、設定項目、待受先の形式、ピア設定の整合性を検査する。mTLS の場合は、指定ファイルを読み、CA によるノード証明書の検証と秘密鍵との照合も行う。成功時は標準出力に `Configuration OK` とピアの通信方式、実効シードの件数と取得元を表示して終了コード 0 を返す。設定エラー時は標準エラー出力に理由を表示して 1 を返す。
@@ -71,7 +71,7 @@ B の設定 `b.json` の例。
 }
 ```
 
-別々の端末で `./host-status-mcp serve -config a.json` と `./host-status-mcp serve -config b.json` を実行する。上の設定は同じ Linux ホストで試すためのもの。別ホストで使う場合は `peer.listen` のアドレス、`peer.advertise`、`peer.seeds` に閉域で到達できるアドレスを使う。平文モードでは `node_id` と台帳を参加ピアの申告として扱う。
+別々の端末で `./hostmesh-mcp serve -config a.json` と `./hostmesh-mcp serve -config b.json` を実行する。上の設定は同じ Linux ホストで試すためのもの。別ホストで使う場合は `peer.listen` のアドレス、`peer.advertise`、`peer.seeds` に閉域で到達できるアドレスを使う。平文モードでは `node_id` と台帳を参加ピアの申告として扱う。
 
 MCP クライアントから A の `http://127.0.0.1:8787/mcp` に接続する。`host_list` で B の ID を確認し、`host_status` に `{"target":{"node_id":"B の ID"},"sections":["memory"]}` を渡す。接続は B が始めるが、A がその双方向リンクで B に採取を依頼できる。`target` を省略するとローカルを採取する。 `host_list` の `is_local: true` は、MCP クライアントが接続しているノードを示す。同じホスト名を持つピアは `node_id` で指定できる。
 
@@ -79,7 +79,7 @@ A と B が C を共通中継にする場合は、C で `peer.relay: true` と `
 
 ## 同じ接続先でピアを更新する
 
-単体バイナリ版は Linux で `host-status-mcp update check -config updater.json` により署名付き公開版を確認し、`update apply` で適用できる。systemd を使わない機器では、監督用コピーを `host-status-mcp-supervisor supervise -config updater.json` で起動すると、ピアの再起動と署名付き更新を自動化できる。systemd での定期適用には同梱のユーザータイマーを使える。[更新設定・署名・復旧手順](UPDATING.md)
+単体バイナリ版は Linux で `hostmesh-mcp update check -config updater.json` により署名付き公開版を確認し、`update apply` で適用できる。systemd を使わない機器では、監督用コピーを `hostmesh-mcp-supervisor supervise -config updater.json` で起動すると、ピアの再起動と署名付き更新を自動化できる。systemd での定期適用には同梱のユーザータイマーを使える。[更新設定・署名・復旧手順](UPDATING.md)
 
 常駐ピアには固定の MCP ポートとピアポートを設定する。更新時には短い切断を許容し、MCP クライアントは登録済みの URL に再接続する。
 
@@ -170,7 +170,7 @@ mTLS ピアに初回の証明書を登録した後、次の設定を各ノード
 
 B や C 自身の証明書も更新する場合は同じオブジェクトに `url` を追加する。状態照会の `peer.relay` と証明書更新の中継は個別に設定する。経路上の各ピアには 0.0.19 以降が必要。更新設定を省略したピアは従来どおり動く。
 
-同じバイナリで発行局も運用できる。指定したホストで通常の `serve` と別に `host-status-mcp ca serve -config ca.json` を起動する。ひな型は `host-status-mcp ca config example` で取得できる。[中間 CA の準備・初回登録・失効手順](CA.md)
+同じバイナリで発行局も運用できる。指定したホストで通常の `serve` と別に `hostmesh-mcp ca serve -config ca.json` を起動する。ひな型は `hostmesh-mcp ca config example` で取得できる。[中間 CA の準備・初回登録・失効手順](CA.md)
 
 CA 側には、既存のクライアント証明書を mTLS で認証し、失効済みの資格での再発行を拒否する EST の `simplereenroll` 窓口を用意する。CA は CSR の署名、鍵の一致、ノードの参加許可を確認し、そのノードの URI SAN、必要な名前・用途、証明書内のシードを含む新しい証明書を返す。EST サーバー自体には URL のホスト名に有効な専用のサーバー証明書を発行し、更新元の `ca_file` から検証できるようにする。CA 署名鍵は発行側にだけ置く。[EST の再登録](https://www.rfc-editor.org/rfc/rfc7030#section-4.2)・[EST の転送形式](https://www.rfc-editor.org/rfc/rfc8951#section-3)
 
@@ -268,11 +268,11 @@ Linux コンテナではディストリビューションはコンテナ内の�
 ```sh
 go test ./...
 go test -race ./internal/peer ./internal/state
-HOST_STATUS_DOCKER_TEST=1 go test -v ./cmd/host-status-mcp -run '^TestDockerRelay$' -count=1
+HOST_STATUS_DOCKER_TEST=1 go test -v ./cmd/hostmesh-mcp -run '^TestDockerRelay$' -count=1
 HOST_STATUS_SCALE_TEST=1 go test -v ./internal/peer -run '^TestMesh100$' -count=1
 ```
 
-通常のテストはループバック TCP と一時ディレクトリを使う。Docker 試験はローカルの Docker Engine を使い、A と B の TCP を 2 つの独立したブリッジで分離して C 経由の照会と再起動後の復旧を確認する。100 台の試験はメモリ内 gRPC で、フルメッシュと単一中継の両方を確認する。実バイナリでプロセス試験を繰り返すには、絶対パスを `HOST_STATUS_TEST_BINARY` に設定して `go test -count=1 ./cmd/host-status-mcp` を実行する。
+通常のテストはループバック TCP と一時ディレクトリを使う。Docker 試験はローカルの Docker Engine を使い、A と B の TCP を 2 つの独立したブリッジで分離して C 経由の照会と再起動後の復旧を確認する。100 台の試験はメモリ内 gRPC で、フルメッシュと単一中継の両方を確認する。実バイナリでプロセス試験を繰り返すには、絶対パスを `HOST_STATUS_TEST_BINARY` に設定して `go test -count=1 ./cmd/hostmesh-mcp` を実行する。
 
 ピアの型を変更した場合は、`protoc` 36.2、`protoc-gen-go` v1.36.12、`protoc-gen-go-grpc` v1.6.0 を使う。
 

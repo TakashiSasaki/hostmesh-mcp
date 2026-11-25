@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/TakashiSasaki/host-status-mcp/internal/status"
-	wire "github.com/TakashiSasaki/host-status-mcp/proto/hoststatus/peer/v1"
+	"github.com/TakashiSasaki/hostmesh-mcp/internal/status"
+	wire "github.com/TakashiSasaki/hostmesh-mcp/proto/hoststatus/peer/v1"
 )
 
 func expectCode(t *testing.T, err error, code string) {

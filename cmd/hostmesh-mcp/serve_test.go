@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/TakashiSasaki/host-status-mcp/internal/status"
+	"github.com/TakashiSasaki/hostmesh-mcp/internal/status"
 	"github.com/google/uuid"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -77,7 +77,12 @@ func startServeBinary(t *testing.T, c config, binary, version string) readyProce
 		scan := bufio.NewScanner(stderr)
 		for scan.Scan() {
 			line := scan.Text()
-			if strings.HasPrefix(line, "host-status-mcp ") || strings.HasPrefix(line, "peer listening on ") || strings.HasPrefix(line, "MCP listening on ") {
+			if binary != "" {
+				if rest, ok := strings.CutPrefix(line, "host-status-mcp "); ok {
+					line = "hostmesh-mcp " + rest
+				}
+			}
+			if strings.HasPrefix(line, "hostmesh-mcp ") || strings.HasPrefix(line, "peer listening on ") || strings.HasPrefix(line, "MCP listening on ") {
 				ready <- line
 			}
 		}
@@ -92,8 +97,8 @@ func startServeBinary(t *testing.T, c config, binary, version string) readyProce
 				t.Fatalf("serve exited before readiness: %+v", r)
 			}
 			switch {
-			case strings.HasPrefix(line, "host-status-mcp "):
-				want := "host-status-mcp " + version + " node_id="
+			case strings.HasPrefix(line, "hostmesh-mcp "):
+				want := "hostmesh-mcp " + version + " node_id="
 				id, ok := strings.CutPrefix(line, want)
 				if !ok {
 					t.Fatalf("wrong version in startup message: %s", line)

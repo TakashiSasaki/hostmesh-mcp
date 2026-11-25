@@ -7,24 +7,24 @@ Linux 上の単体バイナリを対象とする。ピアの起動と更新は�
 初回は、信頼済みの 0.0.21 以降の配布バイナリを監督用とピア用にコピーする。例えば `/opt/host-status` を用意し、次の 2 ファイルを配置する。
 
 ```sh
-cp ./host-status-mcp /opt/host-status/host-status-mcp-supervisor
-cp ./host-status-mcp /opt/host-status/host-status-mcp
-chmod 755 /opt/host-status/host-status-mcp-supervisor /opt/host-status/host-status-mcp
+cp ./hostmesh-mcp /opt/host-status/hostmesh-mcp-supervisor
+cp ./hostmesh-mcp /opt/host-status/hostmesh-mcp
+chmod 755 /opt/host-status/hostmesh-mcp-supervisor /opt/host-status/hostmesh-mcp
 ```
 
 機器の init から次のコマンドをフォアグラウンドで起動する。監督プロセス自身が終了した場合と機器の再起動時の起動は init が担当する。
 
 ```sh
-/opt/host-status/host-status-mcp-supervisor supervise -config /etc/host-status/updater.json
+/opt/host-status/hostmesh-mcp-supervisor supervise -config /etc/host-status/updater.json
 ```
 
 `updater.json` の例。配布元の URL と署名検証用の公開鍵は実際のものに置き換える。
 
 ```json
 {
-  "binary": "/opt/host-status/host-status-mcp",
+  "binary": "/opt/host-status/hostmesh-mcp",
   "peer_config": "/etc/host-status/peer.json",
-  "manifest_url": "https://updates.example.org/host-status-mcp/release.json",
+  "manifest_url": "https://updates.example.org/hostmesh-mcp/release.json",
   "public_key_file": "/etc/host-status/release.pub",
   "check_interval": "24h"
 }
@@ -42,7 +42,7 @@ chmod 755 /opt/host-status/host-status-mcp-supervisor /opt/host-status/host-stat
 0.0.18 以降の信頼済みバイナリのコピーを更新用にも配置する。これで更新中に候補版が起動できなくなっても、同じ配布バイナリから用意した更新コマンドを実行できる。
 
 ```sh
-install -Dm755 ./host-status-mcp ~/.local/libexec/host-status-mcp-updater
+install -Dm755 ./hostmesh-mcp ~/.local/libexec/hostmesh-mcp-updater
 ```
 
 ピアのサービスアカウントで更新コマンドを実行する。Linux の `/proc` で実プロセスの設定、作業ディレクトリ、台帳を特定するため、対象プロセスの参照、バイナリ配置ディレクトリと台帳への書き込み、対象ユニットの操作が必要になる。偽の配布元への差し替えを防ぐため、更新設定、公開鍵、バイナリの配置ディレクトリは管理するアカウントだけが変更できる場所に置く。
@@ -51,9 +51,9 @@ install -Dm755 ./host-status-mcp ~/.local/libexec/host-status-mcp-updater
 
 ```json
 {
-  "manifest_url": "https://updates.example.org/host-status-mcp/release.json",
+  "manifest_url": "https://updates.example.org/hostmesh-mcp/release.json",
   "public_key_file": "/home/alice/.config/host-status-mcp/release.pub",
-  "binary": "/home/alice/.local/bin/host-status-mcp",
+  "binary": "/home/alice/.local/bin/hostmesh-mcp",
   "systemd_unit": "host-status-mcp.service",
   "user_service": true
 }
@@ -64,8 +64,8 @@ install -Dm755 ./host-status-mcp ~/.local/libexec/host-status-mcp-updater
 ## systemd サービスの確認と適用
 
 ```sh
-~/.local/libexec/host-status-mcp-updater update check -config ~/.config/host-status-mcp/updater.json
-~/.local/libexec/host-status-mcp-updater update apply -config ~/.config/host-status-mcp/updater.json
+~/.local/libexec/hostmesh-mcp-updater update check -config ~/.config/host-status-mcp/updater.json
+~/.local/libexec/hostmesh-mcp-updater update apply -config ~/.config/host-status-mcp/updater.json
 ```
 
 `check` はインストール済みと署名を検証した公開版のバージョンを表示する。`apply` は `major.minor.patch` を数値比較し、新しい安定版だけを適用する。同版・旧版の公開情報では再起動しない。正常時の終了コードは 0。更新や復旧の失敗は標準エラーと終了コード 1 で通知する。
@@ -106,5 +106,7 @@ openssl pkey -in release.key -pubout -out release.pub
 ```sh
 scripts/build-release.sh ./dist-release /absolute/path/to/release.key
 ```
+
+0.0.26 から配布ファイル名は `hostmesh-mcp-<version>-linux-<arch>`。既存の更新クライアントも署名を検証できるよう、マニフェストの製品 ID には `host-status-mcp` を使う。更新先は設定の `binary` で指定する。
 
 スクリプトは Linux ARM64 と x86_64 向けの実行ファイル、`release.json`、そのバイト列に対する Ed25519 の署名（64 バイトの `release.json.sig`）を生成する。バイナリはバージョン別の名前で配布し、署名・マニフェストは組として公開する。不一致やダウンロードの途切れは適用前に検出される。公開 URL は HTTPS を使い、ローカル検証ではループバック IP への HTTP も利用できる。署名鍵は配布ホストにアップロードするファイルから除外する。

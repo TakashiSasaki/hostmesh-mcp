@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/TakashiSasaki/host-status-mcp/internal/status"
+	"github.com/TakashiSasaki/hostmesh-mcp/internal/status"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 

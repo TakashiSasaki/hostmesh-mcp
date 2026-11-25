@@ -1,6 +1,6 @@
 # 発行用ピアを運用する
 
-管理者が指定した 1 台で、同じ `host-status-mcp` バイナリから通常の `serve` と発行用の `ca serve` を別プロセスで起動する。CA は既定で `127.0.0.1:9443` に待ち受け、通常ピアの設定・台帳・起動状態から独立して動く。発行用ホストのピア証明書が期限切れでも、管理者はローカル CLI で再登録できる。オーバーレイ内の発行局の一意性は管理者が保証する。
+管理者が指定した 1 台で、同じ `hostmesh-mcp` バイナリから通常の `serve` と発行用の `ca serve` を別プロセスで起動する。CA は既定で `127.0.0.1:9443` に待ち受け、通常ピアの設定・台帳・起動状態から独立して動く。発行用ホストのピア証明書が期限切れでも、管理者はローカル CLI で再登録できる。オーバーレイ内の発行局の一意性は管理者が保証する。
 
 ## CA を準備する
 
@@ -33,10 +33,10 @@ openssl x509 -req -in est.csr -CA root.pem -CAkey root.key -CAcreateserial \
 **発行用ホスト**で設定と台帳を準備する。相対パスは CA 設定ファイルのディレクトリを基準に解決する。既定のノード証明書の有効期間は 720 時間（30日）で、署名チェーンの期限が上限になる。
 
 ```sh
-host-status-mcp ca config example > ca.json
-host-status-mcp ca config check -config ca.json
-host-status-mcp ca init -config ca.json
-host-status-mcp ca serve -config ca.json
+hostmesh-mcp ca config example > ca.json
+hostmesh-mcp ca config check -config ca.json
+hostmesh-mcp ca init -config ca.json
+hostmesh-mcp ca serve -config ca.json
 ```
 
 `ca config check` は証明書・鍵・既存台帳を検査する。`ca init` は新規の台帳を作る。中間 CA の鍵と台帳は CA アカウントだけが管理し、設定、鍵、台帳を一緒にバックアップする。特に失効後は最新の台帳を保管する。古い台帳を復元すると、その後に記録した失効も巻き戻る。
@@ -60,7 +60,7 @@ host-status-mcp ca serve -config ca.json
 `node_id` は正規表記の UUID v4。名前、IP、シードは任意。証明書の用途は既定で clientAuth と serverAuth。発信専用ノードには `"client_only": true` を指定できる。CA は CSR で鍵の所持を検証し、発行内容には管理者が登録したプロファイルを使う。
 
 ```sh
-host-status-mcp ca enroll -config ca.json -profile node.json -csr node.csr > node-issued.pem
+hostmesh-mcp ca enroll -config ca.json -profile node.json -csr node.csr > node-issued.pem
 ```
 
 コマンドの成功後、ノードに `node-issued.pem` と `root.pem` を渡す。前者を `peer.cert_file`、後者を `peer.ca_file`、そのノード自身の鍵を `peer.key_file` に設定する。その後の EST 更新は mTLS 接続のノード ID、登録済みの公開鍵、CSR の署名と公開鍵を毎回確認する。
@@ -70,7 +70,7 @@ host-status-mcp ca enroll -config ca.json -profile node.json -csr node.csr > nod
 漏洩した鍵を、その鍵で発行した任意の世代の証明書から特定できる。CA の稼働中に実行でき、同じ鍵のすべての世代で以後の再発行が拒否される。
 
 ```sh
-host-status-mcp ca revoke -config ca.json -cert compromised-node.pem
+hostmesh-mcp ca revoke -config ca.json -cert compromised-node.pem
 ```
 
 証明書が手元にない場合は `-node-id <UUID>` で、その時点の登録鍵を失効できる。ノード上で管理者が新しい鍵を生成し、新しい CSR と従来のプロファイルで `ca enroll` を実行する。以前の鍵の失効記録は再登録後も保持される。EST での自動更新は同じ鍵だけに許可する。

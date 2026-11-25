@@ -11,14 +11,14 @@ try {
     New-Item -ItemType Directory -Path $work | Out-Null
     icacls $work /grant "${user}:(OI)(CI)M" | Out-Null
     if ($LASTEXITCODE) { throw "Cannot grant test directory access" }
-    Copy-Item "$env:RUNNER_TEMP/host-status-mcp.exe" $work
-    go test -c -o "$work/probe.exe" ./cmd/host-status-mcp
+    Copy-Item "$env:RUNNER_TEMP/hostmesh-mcp.exe" $work
+    go test -c -o "$work/probe.exe" ./cmd/hostmesh-mcp
     if ($LASTEXITCODE) { throw "Cannot compile test" }
     @'
 @echo off
 set "TEMP=%~dp0"
 set "TMP=%~dp0"
-set "HOST_STATUS_TEST_BINARY=%~dp0host-status-mcp.exe"
+set "HOST_STATUS_TEST_BINARY=%~dp0hostmesh-mcp.exe"
 set "HOST_STATUS_STANDARD_USER=1"
 "%~dp0probe.exe" -test.v -test.run "^Test(WindowsNative|Stdio)$" > "%~dp0result.log" 2>&1
 exit /b %errorlevel%

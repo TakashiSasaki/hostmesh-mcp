@@ -13,8 +13,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/TakashiSasaki/host-status-mcp/internal/localfile"
-	"github.com/TakashiSasaki/host-status-mcp/internal/peer"
+	"github.com/TakashiSasaki/hostmesh-mcp/internal/localfile"
+	"github.com/TakashiSasaki/hostmesh-mcp/internal/peer"
 	"github.com/google/uuid"
 )
 

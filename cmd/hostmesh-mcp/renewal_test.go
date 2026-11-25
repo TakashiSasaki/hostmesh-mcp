@@ -23,7 +23,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/TakashiSasaki/host-status-mcp/internal/peer"
+	"github.com/TakashiSasaki/hostmesh-mcp/internal/peer"
 	"github.com/google/uuid"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/smallstep/pkcs7"

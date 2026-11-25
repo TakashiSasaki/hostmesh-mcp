@@ -22,8 +22,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/TakashiSasaki/host-status-mcp/internal/peer"
-	"github.com/TakashiSasaki/host-status-mcp/internal/status"
+	"github.com/TakashiSasaki/hostmesh-mcp/internal/peer"
+	"github.com/TakashiSasaki/hostmesh-mcp/internal/status"
 	"github.com/google/uuid"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -61,7 +61,7 @@ func testDockerRelay(t *testing.T, mtls, renewal bool) {
 		}
 	}
 
-	build("build", "-o", filepath.Join(imageDir, "host-status-mcp"), ".")
+	build("build", "-o", filepath.Join(imageDir, "hostmesh-mcp"), ".")
 	build("test", "-c", "-o", filepath.Join(imageDir, "probe"), ".")
 	rootfs := filepath.Join(root, "rootfs.tar")
 	// Give only B a different timezone so the response identifies the sampled node.
@@ -77,7 +77,7 @@ func testDockerRelay(t *testing.T, mtls, renewal bool) {
 	if err := os.WriteFile(filepath.Join(imageDir, "tokyo.zone"), zone, 0644); err != nil {
 		t.Fatal(err)
 	}
-	run("tar", "-C", imageDir, "-cf", rootfs, "host-status-mcp", "probe", "tokyo.zone")
+	run("tar", "-C", imageDir, "-cf", rootfs, "hostmesh-mcp", "probe", "tokyo.zone")
 	osRelease := filepath.Join(root, "test-os-release")
 	if err := os.WriteFile(osRelease, []byte("ID=lab-linux\nNAME=\"Lab Linux\"\nVERSION_ID=2.4\nVERSION=\"2.4 (Test)\"\n"), 0644); err != nil {
 		t.Fatal(err)
@@ -94,7 +94,7 @@ func testDockerRelay(t *testing.T, mtls, renewal bool) {
 			t.Errorf("cleanup docker %v: %v\n%s", args, err, out)
 		}
 	}
-	run("docker", "image", "import", "--change", `ENTRYPOINT ["/host-status-mcp"]`, rootfs, image)
+	run("docker", "image", "import", "--change", `ENTRYPOINT ["/hostmesh-mcp"]`, rootfs, image)
 	t.Cleanup(func() { remove("image", "rm", image) })
 	t.Logf("shared test image: %s bytes", run("docker", "image", "inspect", "-f", "{{.Size}}", image))
 	for _, network := range []string{left, right} {
@@ -166,7 +166,7 @@ func testDockerRelay(t *testing.T, mtls, renewal bool) {
 			// A restarted node can have more than one startup line.
 			for _, line := range slices.Backward(strings.Split(logs, "\n")) {
 				if before, id, ok := strings.Cut(line, " node_id="); ok &&
-					strings.HasPrefix(before, "host-status-mcp ") && uuid.Validate(id) == nil {
+					strings.HasPrefix(before, "hostmesh-mcp ") && uuid.Validate(id) == nil {
 					return id
 				}
 			}

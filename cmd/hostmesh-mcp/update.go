@@ -21,11 +21,11 @@ func runUpdate(ctx context.Context, args []string) error {
 	if runtime.GOOS != "linux" {
 		return errors.New("binary updates require Linux")
 	}
-	const usage = "usage: host-status-mcp update {check|apply} -config <updater.json>"
+	const usage = "usage: hostmesh-mcp update {check|apply} -config <updater.json>"
 	if len(args) == 0 || (args[0] != "check" && args[0] != "apply") {
 		return errors.New(usage)
 	}
-	fs := flag.NewFlagSet("host-status-mcp update "+args[0], flag.ContinueOnError)
+	fs := flag.NewFlagSet("hostmesh-mcp update "+args[0], flag.ContinueOnError)
 	configPath := fs.String("config", "", "local updater configuration file")
 	if err := fs.Parse(args[1:]); err != nil {
 		if err == flag.ErrHelp {

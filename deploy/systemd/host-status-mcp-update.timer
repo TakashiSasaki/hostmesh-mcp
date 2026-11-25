@@ -1,5 +1,5 @@
 [Unit]
-Description=Check for a signed host-status-mcp release daily
+Description=Check for a signed hostmesh-mcp release daily
 
 [Timer]
 OnCalendar=daily

@@ -1,6 +1,6 @@
 [Unit]
-Description=Check and update the local host-status-mcp peer
+Description=Check and update the local hostmesh-mcp peer
 
 [Service]
 Type=oneshot
-ExecStart=%h/.local/libexec/host-status-mcp-updater update apply -config %h/.config/host-status-mcp/updater.json
+ExecStart=%h/.local/libexec/hostmesh-mcp-updater update apply -config %h/.config/host-status-mcp/updater.json

@@ -55,7 +55,7 @@ func TestConfigExampleGuidance(t *testing.T) {
 		success bool
 		want    string
 	}{
-		{[]string{"serve"}, false, "host-status-mcp config example > peer.json"},
+		{[]string{"serve"}, false, "hostmesh-mcp config example > peer.json"},
 		{[]string{"config", "example", "-help"}, true, "[-join] [-mtls]"},
 		{[]string{"config", "example", "-unknown"}, false, "unknown"},
 		{[]string{"config", "example", "extra"}, false, "unexpected argument"},

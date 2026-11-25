@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/TakashiSasaki/host-status-mcp/internal/status"
+	"github.com/TakashiSasaki/hostmesh-mcp/internal/status"
 	"google.golang.org/grpc/test/bufconn"
 )
 

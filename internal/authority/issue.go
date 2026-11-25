@@ -15,7 +15,7 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/TakashiSasaki/host-status-mcp/internal/peer"
+	"github.com/TakashiSasaki/hostmesh-mcp/internal/peer"
 )
 
 func parseCSR(der []byte) (*x509.CertificateRequest, error) {

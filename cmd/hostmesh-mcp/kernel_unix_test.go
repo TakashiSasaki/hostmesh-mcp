@@ -5,7 +5,7 @@ package main
 import (
 	"testing"
 
-	"github.com/TakashiSasaki/host-status-mcp/internal/status"
+	"github.com/TakashiSasaki/hostmesh-mcp/internal/status"
 	"golang.org/x/sys/unix"
 )
 

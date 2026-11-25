@@ -1,6 +1,6 @@
 syntax = "proto3";
 package hoststatus.peer.v1;
-option go_package = "github.com/TakashiSasaki/host-status-mcp/proto/hoststatus/peer/v1;peerv1";
+option go_package = "github.com/TakashiSasaki/hostmesh-mcp/proto/hoststatus/peer/v1;peerv1";
 
 service Peering {
   rpc Link(stream Frame) returns (stream Frame);

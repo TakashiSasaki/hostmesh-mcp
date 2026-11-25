@@ -14,7 +14,7 @@ cleanup() {
     rm -rf -- "$work"
 }
 trap cleanup EXIT
-CGO_ENABLED=0 go test -c -o "$work/probe" ./cmd/host-status-mcp
+CGO_ENABLED=0 go test -c -o "$work/probe" ./cmd/hostmesh-mcp
 tar -cf - --files-from /dev/null | docker image import - "$image" >/dev/null
 docker run --rm --network none --read-only --cap-drop ALL --user 65534:65534 \
     --tmpfs /tmp:rw,exec,nosuid,nodev,mode=1777,size=256m \

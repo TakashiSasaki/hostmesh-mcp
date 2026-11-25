@@ -16,7 +16,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/TakashiSasaki/host-status-mcp/internal/mcpserver"
+	"github.com/TakashiSasaki/hostmesh-mcp/internal/mcpserver"
 	"github.com/google/uuid"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )

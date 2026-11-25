@@ -6,8 +6,8 @@ import (
 	"sort"
 	"time"
 
-	"github.com/TakashiSasaki/host-status-mcp/internal/status"
-	wire "github.com/TakashiSasaki/host-status-mcp/proto/hoststatus/peer/v1"
+	"github.com/TakashiSasaki/hostmesh-mcp/internal/status"
+	wire "github.com/TakashiSasaki/hostmesh-mcp/proto/hoststatus/peer/v1"
 )
 
 func live(l *link) bool { return l != nil && l.ctx.Err() == nil }

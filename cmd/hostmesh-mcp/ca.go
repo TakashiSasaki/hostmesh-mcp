@@ -8,11 +8,11 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/TakashiSasaki/host-status-mcp/internal/authority"
+	"github.com/TakashiSasaki/hostmesh-mcp/internal/authority"
 )
 
 func runCA(ctx context.Context, args []string) error {
-	const usage = "usage: host-status-mcp ca {serve|init|enroll|revoke|config check} -config <ca.json> (template: host-status-mcp ca config example)"
+	const usage = "usage: hostmesh-mcp ca {serve|init|enroll|revoke|config check} -config <ca.json> (template: hostmesh-mcp ca config example)"
 	if len(args) == 0 {
 		return errors.New(usage)
 	}

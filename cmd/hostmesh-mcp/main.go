@@ -10,10 +10,10 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/TakashiSasaki/host-status-mcp/internal/mcpserver"
-	"github.com/TakashiSasaki/host-status-mcp/internal/service"
-	"github.com/TakashiSasaki/host-status-mcp/internal/state"
-	"github.com/TakashiSasaki/host-status-mcp/internal/status"
+	"github.com/TakashiSasaki/hostmesh-mcp/internal/mcpserver"
+	"github.com/TakashiSasaki/hostmesh-mcp/internal/service"
+	"github.com/TakashiSasaki/hostmesh-mcp/internal/state"
+	"github.com/TakashiSasaki/hostmesh-mcp/internal/status"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -53,13 +53,13 @@ func run(ctx context.Context, args []string) error {
 				return runConfigured(ctx, version, "config check", args[2:])
 			}
 		}
-		return fmt.Errorf("usage: host-status-mcp config example [-join] [-mtls] | config check -config <path>")
+		return fmt.Errorf("usage: hostmesh-mcp config example [-join] [-mtls] | config check -config <path>")
 	}
 	if len(args) > 0 && args[0] == "serve" {
 		return runConfigured(ctx, version, "serve", args[1:])
 	}
 	if len(args) == 0 || args[0] != "stdio" {
-		return fmt.Errorf("usage: host-status-mcp version | ca {serve|init|enroll|revoke|config} | update {check|apply} -config <path> | supervise -config <updater.json> | stdio [-state-dir directory] | serve -config <path> | config example [-join] [-mtls] | config check -config <path>")
+		return fmt.Errorf("usage: hostmesh-mcp version | ca {serve|init|enroll|revoke|config} | update {check|apply} -config <path> | supervise -config <updater.json> | stdio [-state-dir directory] | serve -config <path> | config example [-join] [-mtls] | config check -config <path>")
 	}
 	flags := flag.NewFlagSet("stdio", flag.ContinueOnError)
 	dir := flags.String("state-dir", "", "persistent state directory")
@@ -87,7 +87,7 @@ func run(ctx context.Context, args []string) error {
 	defer store.Close()
 	filesystems := []string{defaultFilesystemRoot()}
 	s := &service.Service{State: store, Collect: status.Native(filesystems, version)}
-	fmt.Fprintf(os.Stderr, "host-status-mcp %s node_id=%s\n", version, store.Self().ID)
+	fmt.Fprintf(os.Stderr, "hostmesh-mcp %s node_id=%s\n", version, store.Self().ID)
 	server := mcpserver.New(version, s)
 	allowKill := mcpserver.RegisterProcessKill(server, store.Self().ID, true)
 	mcpserver.AddServerConfig(server, mcpserver.ServerConfig{
@@ -99,7 +99,7 @@ func run(ctx context.Context, args []string) error {
 }
 
 func runConfigured(ctx context.Context, version, command string, args []string) error {
-	flags := flag.NewFlagSet("host-status-mcp "+command, flag.ContinueOnError)
+	flags := flag.NewFlagSet("hostmesh-mcp "+command, flag.ContinueOnError)
 	path := flags.String("config", "", "JSON configuration file")
 	if err := flags.Parse(args); err != nil {
 		if err == flag.ErrHelp {
@@ -108,7 +108,7 @@ func runConfigured(ctx context.Context, version, command string, args []string) 
 		return err
 	}
 	if *path == "" || flags.NArg() != 0 {
-		return fmt.Errorf("usage: host-status-mcp %s -config <path>\nGenerate a template with: host-status-mcp config example > peer.json", command)
+		return fmt.Errorf("usage: hostmesh-mcp %s -config <path>\nGenerate a template with: hostmesh-mcp config example > peer.json", command)
 	}
 
 	cfg, err := readConfig(*path)

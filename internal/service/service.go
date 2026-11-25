@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/TakashiSasaki/host-status-mcp/internal/state"
-	"github.com/TakashiSasaki/host-status-mcp/internal/status"
+	"github.com/TakashiSasaki/hostmesh-mcp/internal/state"
+	"github.com/TakashiSasaki/hostmesh-mcp/internal/status"
 )
 
 type Service struct {

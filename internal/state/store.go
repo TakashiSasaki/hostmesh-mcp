@@ -16,8 +16,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/TakashiSasaki/host-status-mcp/internal/localfile"
-	"github.com/TakashiSasaki/host-status-mcp/internal/status"
+	"github.com/TakashiSasaki/hostmesh-mcp/internal/localfile"
+	"github.com/TakashiSasaki/hostmesh-mcp/internal/status"
 	"github.com/google/uuid"
 )
 

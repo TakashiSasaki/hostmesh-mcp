@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/TakashiSasaki/host-status-mcp/internal/status"
+	"github.com/TakashiSasaki/hostmesh-mcp/internal/status"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -23,7 +23,7 @@ type serverVersion struct {
 }
 
 func New(version string, backend Backend) *mcp.Server {
-	const serverName = "host-status-mcp"
+	const serverName = "hostmesh-mcp"
 	server := mcp.NewServer(&mcp.Implementation{Name: serverName, Version: version}, nil)
 	mcp.AddTool(server, &mcp.Tool{Name: "server_version", Description: "Get the version of the connected MCP server.", Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true}},
 		func(_ context.Context, _ *mcp.CallToolRequest, _ struct{}) (*mcp.CallToolResult, serverVersion, error) {

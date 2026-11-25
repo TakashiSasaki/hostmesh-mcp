@@ -1,4 +1,4 @@
-# host-status-mcp 設計
+# hostmesh-mcp 設計
 
 MCP クライアントは、接続先のサーバからローカルまたは別ホストの状態を取得する。当面の開発と配布対象は Linux の ARM64 と x86_64。Windows x64 と macOS は読み取り系のツールを提供し、GitHub Actions で検証する。各ホストは台帳を同期し、到達できるペアで自動的にフルメッシュを形成する。直結が使えないペアは、共通の中継を 1 台経由して照会する。約 100 台を想定し、閉域での平文ピア通信と、任意の mTLS を設計する。
 
@@ -97,7 +97,7 @@ macOS 版では、stdio と HTTP の両方で `process_kill` を登録しない�
 }
 ```
 
-`route.kind` は `local`、`direct`、`relay` のいずれか。Tailscale を使う場合も `direct` は対象との直接の `Link`、`relay` は第三の `host-status-mcp` が照会を取り次いだことを示す。`observed_at` は対象ノードでの採取時刻を示す。`host_list` の `last_seen_at` は直結または許可済み中継を通じて対象の接続を確認した最終時刻とする。接続状態は照会元から見た `connected`、`disconnected`、`unknown` で表す。台帳同期で存在だけを知ったノードの接続状態は `unknown` とする。
+`route.kind` は `local`、`direct`、`relay` のいずれか。Tailscale を使う場合も `direct` は対象との直接の `Link`、`relay` は第三の `hostmesh-mcp` が照会を取り次いだことを示す。`observed_at` は対象ノードでの採取時刻を示す。`host_list` の `last_seen_at` は直結または許可済み中継を通じて対象の接続を確認した最終時刻とする。接続状態は照会元から見た `connected`、`disconnected`、`unknown` で表す。台帳同期で存在だけを知ったノードの接続状態は `unknown` とする。
 
 ## 3 OS 共通の採取項目
 
@@ -174,7 +174,7 @@ MCP のローカル実行は `stdio` またはループバックを使い、リ�
 
 ## Go の実装順と受け入れ条件
 
-実装は `/data` 配下で Git 管理する。リポジトリ名を `host-status-mcp`、初期ブランチを `main` とする案では、共有ベアリポジトリを `/data/host-status-mcp/.bare/`、ソース編集用の linked worktree を `/data/host-status-mcp/main/` に置く。開始時に親ディレクトリの `AGENTS.md` へ対象ブランチと取得方針を記載し、`/data/AGENTS.md` の配置に従う。
+実装は `/data` 配下で Git 管理する。リポジトリ名は `hostmesh-mcp`、初期ブランチは `main`。この開発ホストでは共有ベアリポジトリを `/data/host-status-mcp/.bare/`、ソース編集用の linked worktree を `/data/host-status-mcp/main/` に置く。開始時に親ディレクトリの `AGENTS.md` へ対象ブランチと取得方針を記載し、`/data/AGENTS.md` の配置に従う。
 
 Go ソース、テストコード、テスト用フィクスチャ、`DESIGN.md`、`TESTING.md` を同じ worktree で管理し、設計とテストの変更も Git の履歴に残す。実行時状態、証明書の秘密鍵、テストの一時出力にはそれぞれの実行環境の保存先を使う。
 

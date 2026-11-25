@@ -23,7 +23,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/TakashiSasaki/host-status-mcp/internal/localfile"
+	"github.com/TakashiSasaki/hostmesh-mcp/internal/localfile"
 	"github.com/smallstep/pkcs7"
 )
 

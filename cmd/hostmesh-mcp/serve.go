@@ -15,10 +15,10 @@ import (
 	"slices"
 	"time"
 
-	"github.com/TakashiSasaki/host-status-mcp/internal/mcpserver"
-	"github.com/TakashiSasaki/host-status-mcp/internal/peer"
-	"github.com/TakashiSasaki/host-status-mcp/internal/state"
-	"github.com/TakashiSasaki/host-status-mcp/internal/status"
+	"github.com/TakashiSasaki/hostmesh-mcp/internal/mcpserver"
+	"github.com/TakashiSasaki/hostmesh-mcp/internal/peer"
+	"github.com/TakashiSasaki/hostmesh-mcp/internal/state"
+	"github.com/TakashiSasaki/hostmesh-mcp/internal/status"
 	"github.com/google/uuid"
 )
 
@@ -289,7 +289,7 @@ func serveGeneration(ctx context.Context, version string, c *config, security *p
 		return dir.UpdateSelf(info)
 	}}, peerListener, dir, status.Native(c.Filesystems, version), nil, nil)
 	defer p.Close()
-	fmt.Fprintf(os.Stderr, "host-status-mcp %s node_id=%s\n", version, dir.Self().ID)
+	fmt.Fprintf(os.Stderr, "hostmesh-mcp %s node_id=%s\n", version, dir.Self().ID)
 	if peerListener != nil {
 		fmt.Fprintln(os.Stderr, "peer listening on", peerListener.Addr())
 	}

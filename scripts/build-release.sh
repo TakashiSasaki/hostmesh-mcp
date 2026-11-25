@@ -7,11 +7,11 @@ if [ "$#" -ne 2 ]; then
 fi
 out=$1
 key=$2
-version=$(cat cmd/host-status-mcp/VERSION)
+version=$(cat cmd/hostmesh-mcp/VERSION)
 mkdir -- "$out"
 for arch in amd64 arm64; do
-    name="host-status-mcp-$version-linux-$arch"
-    CGO_ENABLED=0 GOOS=linux GOARCH="$arch" go build -trimpath -o "$out/$name" ./cmd/host-status-mcp
+    name="hostmesh-mcp-$version-linux-$arch"
+    CGO_ENABLED=0 GOOS=linux GOARCH="$arch" go build -trimpath -o "$out/$name" ./cmd/hostmesh-mcp
 done
 python3 - "$out" "$version" <<'PY'
 import hashlib
@@ -24,7 +24,7 @@ version = sys.argv[2]
 artifacts = {}
 for arch in ("amd64", "arm64"):
     platform = "linux-" + arch
-    binary = directory / f"host-status-mcp-{version}-{platform}"
+    binary = directory / f"hostmesh-mcp-{version}-{platform}"
     artifacts[platform] = {
         "url": binary.name,
         "size": binary.stat().st_size,

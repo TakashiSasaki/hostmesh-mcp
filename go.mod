@@ -1,4 +1,4 @@
-module github.com/TakashiSasaki/host-status-mcp
+module github.com/TakashiSasaki/hostmesh-mcp
 
 go 1.26.0
 

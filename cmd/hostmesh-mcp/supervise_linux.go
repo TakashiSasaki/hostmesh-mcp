@@ -97,7 +97,7 @@ func (p *supervisedPeer) stop(ctx context.Context) error {
 }
 
 func runSupervise(ctx context.Context, args []string) error {
-	fs := flag.NewFlagSet("host-status-mcp supervise", flag.ContinueOnError)
+	fs := flag.NewFlagSet("hostmesh-mcp supervise", flag.ContinueOnError)
 	path := fs.String("config", "", "local updater configuration with peer_config")
 	if err := fs.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
@@ -106,7 +106,7 @@ func runSupervise(ctx context.Context, args []string) error {
 		return err
 	}
 	if *path == "" || fs.NArg() != 0 {
-		return errors.New("usage: host-status-mcp supervise -config <updater.json>")
+		return errors.New("usage: hostmesh-mcp supervise -config <updater.json>")
 	}
 	c, err := readUpdateSettings(*path)
 	if err != nil {

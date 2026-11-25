@@ -1115,7 +1115,7 @@ const file_proto_hoststatus_peer_v1_peer_proto_rawDesc = "" +
 	"\vRenewalOpen\x12\x12\n" +
 	"\x04path\x18\x01 \x03(\tR\x04path2K\n" +
 	"\aPeering\x12@\n" +
-	"\x04Link\x12\x19.hoststatus.peer.v1.Frame\x1a\x19.hoststatus.peer.v1.Frame(\x010\x01BJZHgithub.com/TakashiSasaki/host-status-mcp/proto/hoststatus/peer/v1;peerv1b\x06proto3"
+	"\x04Link\x12\x19.hoststatus.peer.v1.Frame\x1a\x19.hoststatus.peer.v1.Frame(\x010\x01BGZEgithub.com/TakashiSasaki/hostmesh-mcp/proto/hoststatus/peer/v1;peerv1b\x06proto3"
 
 var (
 	file_proto_hoststatus_peer_v1_peer_proto_rawDescOnce sync.Once

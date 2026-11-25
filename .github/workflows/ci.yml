@@ -17,17 +17,17 @@ jobs:
           go-version-file: go.mod
       - name: Build peer
         if: runner.os != 'Windows'
-        run: CGO_ENABLED=0 go build -o "$RUNNER_TEMP/host-status-mcp" ./cmd/host-status-mcp
+        run: CGO_ENABLED=0 go build -o "$RUNNER_TEMP/hostmesh-mcp" ./cmd/hostmesh-mcp
       - name: Test with the native executable
         if: runner.os != 'Windows'
-        run: HOST_STATUS_TEST_BINARY="$RUNNER_TEMP/host-status-mcp" go test -count=1 ./...
+        run: HOST_STATUS_TEST_BINARY="$RUNNER_TEMP/hostmesh-mcp" go test -count=1 ./...
       - name: Build and test Windows x64 peer
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
           $env:CGO_ENABLED = '0'
-          $env:HOST_STATUS_TEST_BINARY = "$env:RUNNER_TEMP/host-status-mcp.exe"
-          go build -trimpath -o $env:HOST_STATUS_TEST_BINARY ./cmd/host-status-mcp
+          $env:HOST_STATUS_TEST_BINARY = "$env:RUNNER_TEMP/hostmesh-mcp.exe"
+          go build -trimpath -o $env:HOST_STATUS_TEST_BINARY ./cmd/hostmesh-mcp
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           go test -count=1 ./...
       - name: Test Windows monitoring as a standard user
@@ -38,6 +38,6 @@ jobs:
         if: runner.os == 'Windows' && github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: host-status-mcp-windows-amd64
-          path: ${{ runner.temp }}/host-status-mcp.exe
+          name: hostmesh-mcp-windows-amd64
+          path: ${{ runner.temp }}/hostmesh-mcp.exe
           if-no-files-found: error

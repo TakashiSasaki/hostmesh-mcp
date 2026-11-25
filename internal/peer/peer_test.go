@@ -11,9 +11,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/TakashiSasaki/host-status-mcp/internal/mcpserver"
-	"github.com/TakashiSasaki/host-status-mcp/internal/state"
-	"github.com/TakashiSasaki/host-status-mcp/internal/status"
+	"github.com/TakashiSasaki/hostmesh-mcp/internal/mcpserver"
+	"github.com/TakashiSasaki/hostmesh-mcp/internal/state"
+	"github.com/TakashiSasaki/hostmesh-mcp/internal/status"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
