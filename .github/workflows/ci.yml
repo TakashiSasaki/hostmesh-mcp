@@ -35,9 +35,81 @@ jobs:
         shell: pwsh
         run: ./scripts/test-windows-user.ps1
       - name: Upload tested Windows executable
-        if: runner.os == 'Windows' && github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: runner.os == 'Windows' && github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: hostmesh-mcp-windows-amd64
           path: ${{ runner.temp }}/hostmesh-mcp.exe
           if-no-files-found: error
+      - name: Upload tested Linux executable
+        if: runner.os == 'Linux' && github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: hostmesh-mcp-linux-${{ runner.arch == 'ARM64' && 'arm64' || 'amd64' }}
+          path: ${{ runner.temp }}/hostmesh-mcp
+          if-no-files-found: error
+
+  package:
+    needs: test
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: hostmesh-mcp-*
+          path: artifacts
+      - name: Package the tested binaries
+        run: |
+          set -eu
+          version=$(cat cmd/hostmesh-mcp/VERSION)
+          [[ "$version" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]
+          if [[ "$GITHUB_REF_TYPE" == tag ]]; then test "$GITHUB_REF_NAME" = "v$version"; fi
+          mkdir dist
+          for arch in amd64 arm64; do
+            install -m755 "artifacts/hostmesh-mcp-linux-$arch/hostmesh-mcp" "dist/hostmesh-mcp-$version-linux-$arch"
+          done
+          test "$(dist/hostmesh-mcp-"$version"-linux-amd64 version)" = "$version"
+          (cd artifacts/hostmesh-mcp-windows-amd64 && zip -q "../../dist/hostmesh-mcp-$version-windows-amd64.zip" hostmesh-mcp.exe)
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release-assets
+          path: dist/
+          if-no-files-found: error
+
+  publish:
+    needs: package
+    if: github.repository == 'TakashiSasaki/hostmesh-mcp' && github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
+      attestations: read
+    concurrency: hostmesh-stable-release
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: release-assets
+          path: dist
+      - name: Publish immutable release and verify uploaded assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          tag=$GITHUB_REF_NAME
+          # A delayed or retried tag build must not supersede a newer stable release.
+          stable=$(gh api --paginate "repos/$GH_REPO/releases" --jq '.[] | select(.draft == false and .prerelease == false) | .tag_name')
+          newest=$(printf '%s\n' "$stable" "$tag" | sort -V | tail -1)
+          test "$newest" = "$tag"
+          existing=$(gh release view "$tag" --json isDraft --jq .isDraft 2>/dev/null || true)
+          if [[ "$existing" != false ]]; then
+            if [[ "$existing" != true ]]; then
+              gh release create "$tag" --verify-tag --draft --title "$tag" --generate-notes
+            fi
+            gh release upload "$tag" dist/* --clobber
+            gh release edit "$tag" --draft=false --latest=false
+          fi
+          for asset in dist/*; do
+            gh release verify-asset "$tag" "$asset"
+          done
+          gh release edit "$tag" --latest
