@@ -67,7 +67,7 @@ func TestConfigCheck(t *testing.T) {
 			cmd.Stderr = &stderr
 			out, err := cmd.Output()
 			if tc.problem == "" {
-				if err != nil || string(out) != "Configuration OK (peer mode: "+tc.mode+")\n" || stderr.Len() != 0 {
+				if err != nil || !strings.HasPrefix(string(out), "Configuration OK (peer mode: "+tc.mode+", seeds: ") || stderr.Len() != 0 {
 					t.Fatalf("check: %v, stdout=%q stderr=%q", err, out, stderr.String())
 				}
 			} else if cmd.ProcessState.ExitCode() != 1 || len(out) != 0 || !strings.Contains(stderr.String(), tc.problem) {

@@ -43,7 +43,7 @@ func TestStdio(t *testing.T) {
 			t.Fatalf("server advertised version %q", version)
 		}
 		tools, err := session.ListTools(ctx, nil)
-		if err != nil || len(tools.Tools) != 5 {
+		if err != nil || len(tools.Tools) != 6 {
 			t.Fatalf("tool list = %v, err = %v", tools, err)
 		}
 		for _, tool := range tools.Tools {
@@ -62,6 +62,11 @@ func TestStdio(t *testing.T) {
 					t.Fatalf("host_status selector and defaults missing from input schema: %s, %v", schema, err)
 				}
 			}
+		}
+		cfg := callServerConfig(t, session, true)
+		if cfg.MCPTransport != "stdio" || cfg.MCPListen != "" || cfg.Peer.Security != "disabled" ||
+			cfg.Certificate != nil || cfg.StateDir != dir || !cfg.AllowProcessKill || cfg.NodeID == "" {
+			t.Fatalf("unexpected stdio config: %+v", cfg)
 		}
 		versionReply, err := session.CallTool(ctx, &mcp.CallToolParams{Name: "server_version", Arguments: map[string]any{}})
 		if err != nil || versionReply.IsError {

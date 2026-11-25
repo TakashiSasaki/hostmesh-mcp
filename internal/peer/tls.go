@@ -75,6 +75,7 @@ func LoadPeerTLS(ca, cert, key string) (*PeerTLS, error) {
 	if err != nil {
 		return nil, err
 	}
+	pair.Leaf = leaf
 	cfg := &tls.Config{MinVersion: tls.VersionTLS13, RootCAs: roots, ClientCAs: roots, ClientAuth: tls.RequireAndVerifyClientCert, Certificates: []tls.Certificate{pair}}
 	security := &PeerTLS{config: cfg, id: id}
 	_, until, err := security.verifyChain(pair.Certificate, id)

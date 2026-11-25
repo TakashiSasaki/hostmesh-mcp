@@ -44,7 +44,7 @@ sequenceDiagram
 | `addresses` | インターフェースから採取した、管理設定で共有を許可された IP。台帳の表示と同名ホストの絞り込みに使う。 |
 | `peer_endpoints` | ピア接続用に共有する `host:port`。待ち受け側が実際に到達できる DNS 名や IP を広告する。外向き専用ノードは空にする。 |
 
-最初のノードは待ち受けで起動する。追加のノードは、参加先として到達できる既知のピアを `peer.seeds` に 1 台以上設定する。既知のピアは通常のノードでも中継でもよい。接続が成立すると両端が台帳を同期し、新しく得たレコードを次の同期でほかのピアにも伝える。同じ通信方式で接続網が一続きなら、更新が行き渡った時点で全ノードが同じ参加ノードを知る。分断中の追加や変更は、再接続後の同期で伝わる。
+最初のノードは待ち受けで起動する。追加のノードは、参加先として到達できる既知のピアを 1 台以上用意する。接続先は `peer.seeds` で指定でき、mTLS ノードは自分の証明書からも取得できる。既知のピアは通常のノードでも中継でもよい。接続が成立すると両端が台帳を同期し、新しく得たレコードを次の同期でほかのピアにも伝える。同じ通信方式で接続網が一続きなら、更新が行き渡った時点で全ノードが同じ参加ノードを知る。分断中の追加や変更は、再接続後の同期で伝わる。
 
 - 各ノードは自分の `node_id`、ホスト名、OS、共有可能な IP、接続アドレス、中継の設定、更新番号をレコードに載せる。待ち受けが NAT の内側にある場合は、必要に応じて外部から到達できるアドレスとポートを `peer.advertise` で指定する。Tailscale 上では tailnet から到達できる名前や IP を使う。
 - 接続直後、変更時、定期的な同期では ID、更新番号、レコードのハッシュを交換し、未取得のレコードと新版を取得する。各ノードは自分の情報を変えたときに更新番号を増やし、台帳とともに永続化する。同じ版でハッシュが違う場合は競合として記録する。切断後も既知ノードとして表示し、管理者による登録取り消しは同期したレコードより優先する。
@@ -58,13 +58,14 @@ sequenceDiagram
 
 | ツール | 入力 | 結果 |
 | --- | --- | --- |
+| `server_config` | `{}` または `{"include_certificate":true}` | 接続中のサーバーが実際に使用する設定。mTLS ではローカルのリーフ証明書の要約と、明示時に PEM を返す。 |
 | `server_version` | `{}` | MCP の接続先サーバー名と、起動ログおよび `serverInfo.version` と同じ製品バージョン。 |
 | `host_list` | `{}` | ローカル台帳で既知かつ閲覧できるホストの ID、名前、OS、IP、照会元から見た接続状態、最終確認時刻。照会元自身を `is_local` で示す。同期途中や分断中はその時点で把握している一覧を返す。 |
 | `host_status` | `target` を省略するとローカル。指定する場合は `{"node_id":"…"}` または `{"hostname":"build","ip":"192.0.2.32"}`。`sections` を省略すると許可された標準項目を採取する。 | 対象ホスト、採取時刻、照会経路、要求された項目の値、項目ごとの採取エラー。 |
 | `process_status` | ローカルの `pid`。 | 1 プロセスの名前、CPU 使用率、常駐メモリと `process_identity`。 |
 | `process_kill` | `process_status` またはローカルの `processes` 一覧から取得した `pid` と `process_identity`。任意の `signal` は `TERM`（既定）または `KILL`。 | OS が受け付けたシグナルと対象 PID。 |
 
-`server_version`、`host_list`、`host_status`、`process_status` に `readOnlyHint: true` を設定する。`process_kill` は `readOnlyHint: false`、`destructiveHint: true` とする。成功時は出力スキーマに沿った `structuredContent` と互換用のテキストを返す。`HOST_NOT_FOUND`、`AMBIGUOUS_HOST`、`UNREACHABLE`、`DEADLINE_EXCEEDED` などの照会エラーは、対応するコードを含む `isError: true` のツール結果にする。`HOST_NOT_FOUND` は照会元の台帳で該当する対象を見つけられなかったこと、`UNREACHABLE` は対象への経路を利用できなかったことを示す。 [MCP のツール仕様](https://modelcontextprotocol.io/specification/2026-07-28/server/tools) [Go SDK のツール注釈](https://pkg.go.dev/github.com/modelcontextprotocol/go-sdk/mcp#ToolAnnotations)
+`server_config`、`server_version`、`host_list`、`host_status`、`process_status` に `readOnlyHint: true` を設定する。`process_kill` は `readOnlyHint: false`、`destructiveHint: true` とする。成功時は出力スキーマに沿った `structuredContent` と互換用のテキストを返す。`HOST_NOT_FOUND`、`AMBIGUOUS_HOST`、`UNREACHABLE`、`DEADLINE_EXCEEDED` などの照会エラーは、対応するコードを含む `isError: true` のツール結果にする。`HOST_NOT_FOUND` は照会元の台帳で該当する対象を見つけられなかったこと、`UNREACHABLE` は対象への経路を利用できなかったことを示す。 [MCP のツール仕様](https://modelcontextprotocol.io/specification/2026-07-28/server/tools) [Go SDK のツール注釈](https://pkg.go.dev/github.com/modelcontextprotocol/go-sdk/mcp#ToolAnnotations)
 
 `process_kill` は Linux PoC のローカル操作とする。stdio で登録し、ループバックの HTTP では `allow_process_kill` が有効な場合に登録する。プロセスの識別子にはノード ID、OS の起動 ID、PID 名前空間、PID、プロセスの開始時刻を使う。操作時は対象の pidfd を開き、識別子を照合したうえでその pidfd にシグナルを送る。識別子の不一致、送信権限の不足、PID 1 とサーバー自身への操作はエラーにする。ピア間の RPC は状態照会を扱う。 [Linux の pidfd](https://man7.org/linux/man-pages/man2/pidfd_open.2.html) [pidfd によるシグナル送信](https://man7.org/linux/man-pages/man2/pidfd_send_signal.2.html)
 
@@ -150,6 +151,7 @@ Linux は ARM64（`GOARCH=arm64`）と x86_64（`GOARCH=amd64`）向けの実行
 
 mTLS のピアも同じ `Link` とツールを使う。管理者が用意する自己署名ルート CA を信頼の起点とし、CA の署名鍵は管理者の署名環境で保管する。各ホストで固有の `node_id` と秘密鍵を生成する。PoC から移行するホストは既存の `node_id` を使う。管理者は CSR とノードの割り当てを確認し、ノード証明書を発行する。各ホストは CA の公開証明書、自分の発行済み証明書、自分の秘密鍵を設定する。VM イメージの複製先も個別に登録する。
 
+- CA は任意で自ノード用のシード一覧を非クリティカル拡張として署名する。受信した証明書からのシード採用を避けるため、設定の入力は起動時に検証した自ノードのリーフ証明書に限定する。明示された `peer.seeds`（空配列を含む）が優先され、未指定時だけローカル証明書の拡張を読む。エンドポイント検証と上限は設定ファイルと共通。拡張 OID はプロジェクト用 UUID `8d6ad020-fb9e-52b1-be07-5a0fc8b3195b` を 16 ビットずつ 8 区切りで表現したもの。[発行例と OID](README.md#ピア間の-mtls) [UUID と OID の変換実装](https://github.com/danielmarschall/uuid_mac_utils/blob/master/includes/uuid_utils.inc.php)
 - ノード証明書の URI SAN は `urn:host-status-mcp:node:<node_id>` とする。発信に使う証明書に `clientAuth`、待ち受けに使う証明書に `serverAuth` を付ける。両方を兼ねる証明書には両方を付ける。待ち受けに使う証明書は、相手の接続設定で使う DNS 名または IP の SAN も持つ。
 - Go の TLS 設定では専用 CA を発信側の `RootCAs` と待ち受け側の `ClientCAs` に設定し、待ち受け側は `RequireAndVerifyClientCert` を使う。両端が `Hello` の `node_id` と検証済み証明書の ID を照合する。発信側は接続先の ID が既知なら、その ID との一致も確認する。待ち受け側は専用 CA が発行したノード証明書と運用環境の参加許可を確認する。 [gRPC の認証](https://grpc.io/docs/guides/auth/#supported-auth-mechanisms) [Go の TLS 設定](https://pkg.go.dev/crypto/tls#Config)
 - mTLS を選んだ環境では、発行元の秘密鍵で署名した台帳レコードを発行元証明書とともに共有する。受信側は専用 CA で証明書を検証し、その公開鍵で署名を検証してから、証明書とレコードの ID を照合する。平文の台帳は証明書や署名付きのレコードを拒否する。方式を切り替えるときは、自ノードの ID を保持し、以前のピアのレコードを破棄して、新しい方式のピアから台帳を取得し直す。証明書の更新時は同じ ID を使い、新しい証明書に対応する版のレコードを発行する。接続は証明書チェーンの有効期限に達すると閉じる。鍵・CA・証明書の更新は再起動で適用し、起動時に自ノードのレコードを新しい版で再署名する。

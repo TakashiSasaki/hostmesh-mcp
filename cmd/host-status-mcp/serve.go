@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -36,11 +37,24 @@ type peerConfig struct {
 	Security       string   `json:"security,omitempty"`
 	Listen         string   `json:"listen,omitempty"`
 	Advertise      []string `json:"advertise,omitempty"`
-	Seeds          []string `json:"seeds,omitempty"`
+	Seeds          seedList `json:"seeds,omitzero"`
+	seedSource     string
 	ShareAddresses *bool    `json:"share_addresses,omitempty"`
 	Relay          bool     `json:"relay,omitempty"`
 	TrustedRelays  []string `json:"trusted_relays,omitempty"`
 	DenyNodes      []string `json:"deny_nodes,omitempty"`
+}
+
+// Keep a present empty list (including a legacy JSON null) distinct from
+// an absent setting, so an explicit override never inherits certificate seeds.
+type seedList []string
+
+func (s *seedList) UnmarshalJSON(data []byte) error {
+	if string(data) == "null" {
+		*s = seedList{}
+		return nil
+	}
+	return json.Unmarshal(data, (*[]string)(s))
 }
 
 func readConfig(path string) (config, error) {
@@ -78,9 +92,6 @@ func readConfig(path string) (config, error) {
 			return c, fmt.Errorf("peer.listen: %w", err)
 		}
 	}
-	if c.MCPListen == "" && c.Peer.Listen == "" && len(c.Peer.Seeds) == 0 {
-		return c, fmt.Errorf("configure at least one MCP or peer endpoint")
-	}
 	mode := "plaintext"
 	if c.Peer.CAFile != "" || c.Peer.CertFile != "" || c.Peer.KeyFile != "" {
 		if c.Peer.CAFile == "" || c.Peer.CertFile == "" || c.Peer.KeyFile == "" {
@@ -95,10 +106,10 @@ func readConfig(path string) (config, error) {
 	if c.Peer.Listen == "" && len(c.Peer.Advertise) != 0 {
 		return c, fmt.Errorf("peer.advertise requires peer.listen")
 	}
-	if len(c.Peer.Advertise) > 16 || len(c.Peer.Seeds) > 16 {
+	if len(c.Peer.Advertise) > 16 || len(c.Peer.Seeds) > peer.MaxSeeds {
 		return c, fmt.Errorf("at most 16 advertised endpoints or seeds are supported")
 	}
-	for _, e := range slices.Concat(c.Peer.Advertise, c.Peer.Seeds) {
+	for _, e := range slices.Concat(c.Peer.Advertise, []string(c.Peer.Seeds)) {
 		if !peer.ValidEndpoint(e) {
 			return c, fmt.Errorf("invalid peer endpoint %q", e)
 		}
@@ -137,6 +148,29 @@ func (p peerConfig) loadTLS() (*peer.PeerTLS, error) {
 	}
 	if slices.Contains(p.DenyNodes, security.NodeID()) {
 		return nil, fmt.Errorf("cannot deny the local node")
+	}
+	return security, nil
+}
+
+func (c *config) preparePeering() (*peer.PeerTLS, error) {
+	security, err := c.Peer.loadTLS()
+	if err != nil {
+		return nil, err
+	}
+	c.Peer.seedSource = "none"
+	if c.Peer.Seeds != nil {
+		c.Peer.seedSource = "config"
+	} else if security != nil {
+		seeds, err := security.BootstrapSeeds()
+		if err != nil {
+			return nil, err
+		}
+		if seeds != nil {
+			c.Peer.Seeds, c.Peer.seedSource = seeds, "certificate"
+		}
+	}
+	if c.MCPListen == "" && c.Peer.Listen == "" && len(c.Peer.Seeds) == 0 {
+		return nil, fmt.Errorf("configure at least one MCP or peer endpoint")
 	}
 	return security, nil
 }
@@ -213,6 +247,22 @@ func serve(ctx context.Context, version string, c config, security *peer.PeerTLS
 		}
 	}
 	mcp := mcpserver.New(version, p)
+	var leaf *x509.Certificate
+	if security != nil {
+		leaf = security.LocalCertificate()
+	}
+	runtimePeer := mcpserver.PeerSettings{
+		Security: c.Peer.Security, Advertise: c.Peer.Advertise, Seeds: c.Peer.Seeds,
+		SeedSource: c.Peer.seedSource, ShareAddresses: shareAddresses, Relay: c.Peer.Relay,
+		TrustedRelays: c.Peer.TrustedRelays, DenyNodes: c.Peer.DenyNodes,
+	}
+	if peerListener != nil {
+		runtimePeer.Listen = peerListener.Addr().String()
+	}
+	mcpserver.AddServerConfig(mcp, mcpserver.ServerConfig{
+		NodeID: dir.Self().ID, MCPTransport: "http", MCPListen: mcpListener.Addr().String(),
+		StateDir: c.StateDir, Filesystems: c.Filesystems, AllowProcessKill: c.AllowProcessKill, Peer: runtimePeer,
+	}, leaf)
 	mcpserver.AddProcessStatus(mcp, dir.Self().ID)
 	if c.AllowProcessKill {
 		mcpserver.AddProcessKill(mcp, dir.Self().ID)

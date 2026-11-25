@@ -60,6 +60,11 @@ func newTestCA(t *testing.T) testCA {
 
 func (ca testCA) issue(t *testing.T, id string, until time.Time, names ...string) peerConfig {
 	t.Helper()
+	return ca.issueWithExtensions(t, id, until, nil, names...)
+}
+
+func (ca testCA) issueWithExtensions(t *testing.T, id string, until time.Time, extensions []pkix.Extension, names ...string) peerConfig {
+	t.Helper()
 	pub, key, err := ed25519.GenerateKey(rand.Reader)
 	if err != nil {
 		t.Fatal(err)
@@ -72,7 +77,7 @@ func (ca testCA) issue(t *testing.T, id string, until time.Time, names ...string
 	if err != nil {
 		t.Fatal(err)
 	}
-	c := &x509.Certificate{SerialNumber: serial, URIs: []*url.URL{uri}, DNSNames: names, IPAddresses: []net.IP{net.ParseIP("127.0.0.1")}, KeyUsage: x509.KeyUsageDigitalSignature, ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth, x509.ExtKeyUsageClientAuth}, NotBefore: time.Now().Add(-time.Hour), NotAfter: until}
+	c := &x509.Certificate{SerialNumber: serial, ExtraExtensions: extensions, URIs: []*url.URL{uri}, DNSNames: names, IPAddresses: []net.IP{net.ParseIP("127.0.0.1")}, KeyUsage: x509.KeyUsageDigitalSignature, ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth, x509.ExtKeyUsageClientAuth}, NotBefore: time.Now().Add(-time.Hour), NotAfter: until}
 	der, err := x509.CreateCertificate(rand.Reader, c, ca.cert, pub, ca.key)
 	if err != nil {
 		t.Fatal(err)
@@ -338,7 +343,16 @@ func TestPeerModeIsolation(t *testing.T) {
 		return startServeProcess(t, config{Peer: cfg, MCPListen: "127.0.0.1:0"})
 	}
 	plainEdge := edge(peerConfig{}, secureHub, plainHub)
-	secureEdge := edge(secureConfig(), plainHub, secureHub)
+	secureCfg := ca.issueWithExtensions(t, uuid.NewString(), time.Now().Add(time.Hour), seedExtension(t, plainHub.peer+","+secureHub.peer))
+	secureEdge := startServeProcess(t, config{Peer: secureCfg, MCPListen: "127.0.0.1:0"})
+	originalLeaf, err := os.ReadFile(secureCfg.CertFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The live leaf must survive replacement of the file on disk.
+	if err := os.WriteFile(secureCfg.CertFile, []byte("replaced"), 0600); err != nil {
+		t.Fatal(err)
+	}
 	for _, pair := range [][2]readyProcess{{plainHub, plainEdge}, {plainEdge, plainHub}, {secureHub, secureEdge}, {secureEdge, secureHub}} {
 		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 		client := mcp.NewClient(&mcp.Implementation{Name: "tls-test", Version: "1"}, nil)
@@ -346,6 +360,12 @@ func TestPeerModeIsolation(t *testing.T) {
 		if err != nil {
 			cancel()
 			t.Fatal(err)
+		}
+		if pair[0] == secureEdge {
+			checkServerConfig(t, session, pair[0], originalLeaf, []string{plainHub.peer, secureHub.peer})
+		}
+		if pair[0] == plainHub {
+			checkServerConfig(t, session, pair[0], nil, nil)
 		}
 		for {
 			reply, err := session.CallTool(ctx, &mcp.CallToolParams{Name: "host_status", Arguments: map[string]any{"target": map[string]string{"node_id": pair[1].id}, "sections": []string{"system"}}})

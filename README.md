@@ -33,7 +33,7 @@ MCP クライアントのコマンド設定では、実行ファイルへの絶�
 ./host-status-mcp config check -config peer.json
 ```
 
-`serve` と共通の規則で JSON、設定項目、待受先の形式、ピア設定の整合性を検査する。mTLS の場合は、指定ファイルを読み、CA によるノード証明書の検証と秘密鍵との照合も行う。成功時は標準出力に `Configuration OK` とピアの通信方式を表示して終了コード 0 を返す。設定エラー時は標準エラー出力に理由を表示して 1 を返す。
+`serve` と共通の規則で JSON、設定項目、待受先の形式、ピア設定の整合性を検査する。mTLS の場合は、指定ファイルを読み、CA によるノード証明書の検証と秘密鍵との照合も行う。成功時は標準出力に `Configuration OK` とピアの通信方式、実効シードの件数と取得元を表示して終了コード 0 を返す。設定エラー時は標準エラー出力に理由を表示して 1 を返す。
 
 稼働中のノードと同じ設定にも使える。状態ディレクトリの作成・ロック・更新、待ち受け、ピアへの接続は行わない。ポートの空き状況、永続化済みノード ID との一致、ピアへの到達性は実際の起動・接続時に確認される。
 
@@ -108,6 +108,12 @@ extendedKeyUsage=clientAuth,serverAuth
 subjectAltName=URI:urn:host-status-mcp:node:7043f65e-b1f6-489d-a0d2-5d402035735d,DNS:a.example.internal,IP:192.0.2.10
 ```
 
+CA 管理者は、参加ノード用の `node.ext` に初期接続先を設定する次の 1 行を追加できる。値は非クリティカル X.509 拡張の DER UTF8String で、カンマ区切りの `host:port` を 1〜16 件指定する。IPv6 の例は `[fd00::1]:7443`。
+
+```ini
+1.3.6.1.4.1.54392.3.36202.53280.64414.21169.48647.23055.51379.6491=ASN1:UTF8String:seed-a.example.internal:7443,seed-b.example.internal:7443
+```
+
 管理者の署名環境で既存の自己署名 CA を使って発行する。
 
 ```sh
@@ -119,9 +125,29 @@ openssl x509 -req -in node.csr -CA ca.pem -CAkey ca.key -CAcreateserial \
 
 設定と証明書は `serve` の起動時に読み込む。更新時は同じ UUID の証明書を配置し、期限前にノードを再起動する。有効期限に達したリンクは切断される。特定ノードの参加を取り消す場合は各ノードの `peer.deny_nodes` に ID を追加して再起動する。同じ `state_dir` で平文と mTLS を切り替えると、自ノードの ID は引き継ぎ、それまでの他ノードの台帳を破棄する。新しい方式のシードからピアを再発見する。
 
+### 参加ノードの証明書にシードを含める
+
+参加ノードでは `ca_file`、`cert_file`、`key_file` を設定し、`peer.seeds` を省略する。`config example -join -mtls` のひな型を使う場合は `seeds` 項目を削除する。初期接続先は次の優先順で決まる。
+
+| 条件 | 実効シード | `peer.seed_source` |
+| --- | --- | --- |
+| 設定に `peer.seeds` がある | 指定した一覧。`[]` は初期シードへの発信を無効にする | `config` |
+| 設定に一覧がなく、自ノードの検証済み証明書に拡張がある | 証明書内の一覧 | `certificate` |
+| どちらもない | 空の一覧 | `none` |
+
+接続先の名前とノード ID は従来どおり mTLS で検証する。シードの省略や空配列にかかわらず、既知のピアの再接続と台帳による発見は通常どおり動作する。
+
 ## 状態照会
 
 `server_version` は、MCP クライアントが接続しているサーバーの名前とバージョンを返す。指定したピアのバージョンは `host_status` の `system.server_version` に含まれる。
+
+読み取り専用の `server_config` に `{}` を渡すと、接続中のノードの `node_id`、MCP の方式、実際に割り当てられた待受先、ピア設定、シードの取得元、中継設定などが返る。`peer.security` は常駐モードで `plaintext` または `mtls`、stdio で `disabled`。mTLS の場合は `certificate` に発行者、有効期間、読み込み済みリーフ証明書の DER の SHA-256 指紋（16 進数）が入る。
+
+```json
+{"include_certificate": true}
+```
+
+この引数を `server_config` に渡すと `certificate.pem` に同じ公開リーフ証明書が入る。ファイル更新後、再起動で新しい証明書が読み込まれたかを指紋で確認できる。
 
 `host_status` で `sections` を省略すると `system`、`cpu`、`memory`、`filesystems` を取得する。追加項目は `sections` で指定する。 要求した項目を一つも取得できなかった場合は、`COLLECTION_FAILED` の `section_errors` から失敗理由を確認できる。
 

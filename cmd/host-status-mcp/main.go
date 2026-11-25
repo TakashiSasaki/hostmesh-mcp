@@ -76,9 +76,14 @@ func run(ctx context.Context, args []string) error {
 		return err
 	}
 	defer store.Close()
-	s := &service.Service{State: store, Collect: status.Native([]string{"/"}, version)}
+	filesystems := []string{"/"}
+	s := &service.Service{State: store, Collect: status.Native(filesystems, version)}
 	fmt.Fprintf(os.Stderr, "host-status-mcp %s node_id=%s\n", version, store.Self().ID)
 	server := mcpserver.New(version, s)
+	mcpserver.AddServerConfig(server, mcpserver.ServerConfig{
+		NodeID: store.Self().ID, MCPTransport: "stdio", StateDir: *dir, Filesystems: filesystems,
+		AllowProcessKill: true, Peer: mcpserver.PeerSettings{Security: "disabled", SeedSource: "none"},
+	}, nil)
 	mcpserver.AddProcessStatus(server, store.Self().ID)
 	mcpserver.AddProcessKill(server, store.Self().ID)
 	return server.Run(ctx, &mcp.StdioTransport{})
@@ -101,12 +106,12 @@ func runConfigured(ctx context.Context, version, command string, args []string) 
 	if err != nil {
 		return fmt.Errorf("configuration %q: %w", *path, err)
 	}
-	security, err := cfg.Peer.loadTLS()
+	security, err := cfg.preparePeering()
 	if err != nil {
 		return fmt.Errorf("configuration %q: %w", *path, err)
 	}
 	if command == "config check" {
-		_, err := fmt.Fprintf(os.Stdout, "Configuration OK (peer mode: %s)\n", cfg.Peer.Security)
+		_, err := fmt.Fprintf(os.Stdout, "Configuration OK (peer mode: %s, seeds: %d, source: %s)\n", cfg.Peer.Security, len(cfg.Peer.Seeds), cfg.Peer.seedSource)
 		return err
 	}
 	return serve(ctx, version, cfg, security)
