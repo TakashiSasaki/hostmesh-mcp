@@ -49,10 +49,6 @@ func TestMacPeer(t *testing.T) {
 			if callServerConfig(t, session, false).AllowProcessKill {
 				t.Fatal("effective config allows process_kill")
 			}
-			_, err = session.CallTool(ctx, &mcp.CallToolParams{Name: "process_kill", Arguments: map[string]any{"pid": 0}})
-			if err == nil || !strings.Contains(err.Error(), "unknown tool") {
-				t.Fatalf("expected unknown tool, got %v", err)
-			}
 			var proc status.Process
 			if err := toolResult(ctx, session, "process_status", map[string]any{"pid": os.Getpid()}, &proc); err != nil {
 				t.Fatal(err)
@@ -87,6 +83,11 @@ func TestMacPeer(t *testing.T) {
 				if cur != nil && (prev == nil || *prev < *cur) {
 					t.Fatal("process list is not ordered by CPU usage")
 				}
+			}
+			// An unknown tool can close the SDK HTTP transport. Exercise it last.
+			_, err = session.CallTool(ctx, &mcp.CallToolParams{Name: "process_kill", Arguments: map[string]any{"pid": 0}})
+			if err == nil || !strings.Contains(err.Error(), "unknown tool") {
+				t.Fatalf("expected unknown tool, got %v", err)
 			}
 		})
 	}

@@ -52,11 +52,7 @@ func collectStorage(ctx context.Context, sectionErrors map[string]string) (*Stor
 	} else {
 		mounts := make([]Mount, 0, len(partitions))
 		for _, p := range partitions {
-			var id string
-			if device, ok := strings.CutPrefix(p.Device, "/dev/"); ok {
-				id = device
-			}
-			mounts = append(mounts, Mount{MountPoint: p.Mountpoint, Source: p.Device, FilesystemType: p.Fstype, ReadOnly: slices.Contains(p.Opts, "ro"), BlockDeviceID: id})
+			mounts = append(mounts, Mount{MountPoint: p.Mountpoint, Source: p.Device, FilesystemType: p.Fstype, ReadOnly: slices.Contains(p.Opts, "ro")})
 		}
 		storage.Mounts = &mounts
 	}
@@ -79,6 +75,19 @@ func collectStorage(ctx context.Context, sectionErrors map[string]string) (*Stor
 			d.appendDevices(&devices, "disk", "")
 		}
 		storage.BlockDevices = &devices
+		// APFS snapshot mount sources may have no row in diskutil's disk list.
+		if storage.Mounts != nil {
+			known := make(map[string]bool, len(devices))
+			for _, d := range devices {
+				known[d.ID] = true
+			}
+			for i := range *storage.Mounts {
+				m := &(*storage.Mounts)[i]
+				if id, ok := strings.CutPrefix(m.Source, "/dev/"); ok && known[id] {
+					m.BlockDeviceID = id
+				}
+			}
+		}
 	}
 	return &storage, ctx.Err()
 }
