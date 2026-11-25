@@ -11,16 +11,23 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
+type RenewalSettings struct {
+	URL     string `json:"url,omitempty"`
+	Relay   bool   `json:"relay,omitempty"`
+	Gateway string `json:"gateway,omitempty"`
+}
+
 type PeerSettings struct {
-	Security       string   `json:"security"`
-	Listen         string   `json:"listen,omitempty"`
-	Advertise      []string `json:"advertise,omitempty"`
-	Seeds          []string `json:"seeds"`
-	SeedSource     string   `json:"seed_source"`
-	ShareAddresses bool     `json:"share_addresses"`
-	Relay          bool     `json:"relay"`
-	TrustedRelays  []string `json:"trusted_relays,omitempty"`
-	DenyNodes      []string `json:"deny_nodes,omitempty"`
+	Renewal        *RenewalSettings `json:"renewal,omitempty"`
+	Security       string           `json:"security"`
+	Listen         string           `json:"listen,omitempty"`
+	Advertise      []string         `json:"advertise,omitempty"`
+	Seeds          []string         `json:"seeds"`
+	SeedSource     string           `json:"seed_source"`
+	ShareAddresses bool             `json:"share_addresses"`
+	Relay          bool             `json:"relay"`
+	TrustedRelays  []string         `json:"trusted_relays,omitempty"`
+	DenyNodes      []string         `json:"deny_nodes,omitempty"`
 }
 
 type ServerConfig struct {

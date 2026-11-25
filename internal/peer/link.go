@@ -36,10 +36,12 @@ type link struct {
 	remote    string
 	tx        chan outgoingFrame
 	// Reachability is protected by owner.mu.
-	reachable  map[string]bool
-	reportedAt time.Time
+	reachable   map[string]bool
+	reportedAt  time.Time
+	renewalPath []string
 
 	mu       sync.Mutex
+	renewals map[string]*renewalPipe
 	pending  map[string]chan *wire.StatusResponse
 	incoming map[string]context.CancelFunc
 }
@@ -84,7 +86,7 @@ func (p *Peer) runStream(s stream, id, expectedID, seed string, established func
 	defer unsubscribe()
 	defer stop()
 	l := &link{owner: p, ctx: ctx, stop: stop, id: id, tx: make(chan outgoingFrame, queueSize),
-		pending: make(map[string]chan *wire.StatusResponse), incoming: make(map[string]context.CancelFunc)}
+		renewals: make(map[string]*renewalPipe), pending: make(map[string]chan *wire.StatusResponse), incoming: make(map[string]context.CancelFunc)}
 	rx := make(chan *wire.Frame)
 	go func() {
 		defer stop()
@@ -255,6 +257,8 @@ func (l *link) write(s stream) {
 
 func (l *link) receive(frame *wire.Frame) bool {
 	switch b := frame.Body.(type) {
+	case *wire.Frame_Renewal:
+		return l.receiveRenewal(b.Renewal)
 	case *wire.Frame_Heartbeat:
 		return true
 	case *wire.Frame_Reachability:

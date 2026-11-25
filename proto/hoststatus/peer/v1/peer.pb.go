@@ -34,6 +34,7 @@ type Frame struct {
 	//	*Frame_RecordRequest
 	//	*Frame_Records
 	//	*Frame_Reachability
+	//	*Frame_Renewal
 	Body          isFrame_Body `protobuf_oneof:"body"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -157,6 +158,15 @@ func (x *Frame) GetReachability() *Reachability {
 	return nil
 }
 
+func (x *Frame) GetRenewal() *RenewalStream {
+	if x != nil {
+		if x, ok := x.Body.(*Frame_Renewal); ok {
+			return x.Renewal
+		}
+	}
+	return nil
+}
+
 type isFrame_Body interface {
 	isFrame_Body()
 }
@@ -197,6 +207,10 @@ type Frame_Reachability struct {
 	Reachability *Reachability `protobuf:"bytes,9,opt,name=reachability,proto3,oneof"`
 }
 
+type Frame_Renewal struct {
+	Renewal *RenewalStream `protobuf:"bytes,10,opt,name=renewal,proto3,oneof"`
+}
+
 func (*Frame_Hello) isFrame_Body() {}
 
 func (*Frame_Heartbeat) isFrame_Body() {}
@@ -214,6 +228,8 @@ func (*Frame_RecordRequest) isFrame_Body() {}
 func (*Frame_Records) isFrame_Body() {}
 
 func (*Frame_Reachability) isFrame_Body() {}
+
+func (*Frame_Renewal) isFrame_Body() {}
 
 type Hello struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -818,8 +834,10 @@ func (x *Records) GetNodes() []*NodeRecord {
 }
 
 type Reachability struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	ConnectedIds  []string               `protobuf:"bytes,1,rep,name=connected_ids,json=connectedIds,proto3" json:"connected_ids,omitempty"`
+	state        protoimpl.MessageState `protogen:"open.v1"`
+	ConnectedIds []string               `protobuf:"bytes,1,rep,name=connected_ids,json=connectedIds,proto3" json:"connected_ids,omitempty"`
+	// Ordered mTLS peers from the advertising relay to its fixed CA gateway.
+	RenewalPath   []string `protobuf:"bytes,2,rep,name=renewal_path,json=renewalPath,proto3" json:"renewal_path,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -861,11 +879,169 @@ func (x *Reachability) GetConnectedIds() []string {
 	return nil
 }
 
+func (x *Reachability) GetRenewalPath() []string {
+	if x != nil {
+		return x.RenewalPath
+	}
+	return nil
+}
+
+// Multiplex a bounded end-to-end CA TLS exchange over existing Link streams.
+type RenewalStream struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Id    string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	// Types that are valid to be assigned to Action:
+	//
+	//	*RenewalStream_Open
+	//	*RenewalStream_Data
+	//	*RenewalStream_Close
+	Action        isRenewalStream_Action `protobuf_oneof:"action"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RenewalStream) Reset() {
+	*x = RenewalStream{}
+	mi := &file_proto_hoststatus_peer_v1_peer_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RenewalStream) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RenewalStream) ProtoMessage() {}
+
+func (x *RenewalStream) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_hoststatus_peer_v1_peer_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RenewalStream.ProtoReflect.Descriptor instead.
+func (*RenewalStream) Descriptor() ([]byte, []int) {
+	return file_proto_hoststatus_peer_v1_peer_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *RenewalStream) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *RenewalStream) GetAction() isRenewalStream_Action {
+	if x != nil {
+		return x.Action
+	}
+	return nil
+}
+
+func (x *RenewalStream) GetOpen() *RenewalOpen {
+	if x != nil {
+		if x, ok := x.Action.(*RenewalStream_Open); ok {
+			return x.Open
+		}
+	}
+	return nil
+}
+
+func (x *RenewalStream) GetData() []byte {
+	if x != nil {
+		if x, ok := x.Action.(*RenewalStream_Data); ok {
+			return x.Data
+		}
+	}
+	return nil
+}
+
+func (x *RenewalStream) GetClose() bool {
+	if x != nil {
+		if x, ok := x.Action.(*RenewalStream_Close); ok {
+			return x.Close
+		}
+	}
+	return false
+}
+
+type isRenewalStream_Action interface {
+	isRenewalStream_Action()
+}
+
+type RenewalStream_Open struct {
+	Open *RenewalOpen `protobuf:"bytes,2,opt,name=open,proto3,oneof"`
+}
+
+type RenewalStream_Data struct {
+	Data []byte `protobuf:"bytes,3,opt,name=data,proto3,oneof"`
+}
+
+type RenewalStream_Close struct {
+	Close bool `protobuf:"varint,4,opt,name=close,proto3,oneof"`
+}
+
+func (*RenewalStream_Open) isRenewalStream_Action() {}
+
+func (*RenewalStream_Data) isRenewalStream_Action() {}
+
+func (*RenewalStream_Close) isRenewalStream_Action() {}
+
+type RenewalOpen struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Path          []string               `protobuf:"bytes,1,rep,name=path,proto3" json:"path,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RenewalOpen) Reset() {
+	*x = RenewalOpen{}
+	mi := &file_proto_hoststatus_peer_v1_peer_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RenewalOpen) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RenewalOpen) ProtoMessage() {}
+
+func (x *RenewalOpen) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_hoststatus_peer_v1_peer_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RenewalOpen.ProtoReflect.Descriptor instead.
+func (*RenewalOpen) Descriptor() ([]byte, []int) {
+	return file_proto_hoststatus_peer_v1_peer_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *RenewalOpen) GetPath() []string {
+	if x != nil {
+		return x.Path
+	}
+	return nil
+}
+
 var File_proto_hoststatus_peer_v1_peer_proto protoreflect.FileDescriptor
 
 const file_proto_hoststatus_peer_v1_peer_proto_rawDesc = "" +
 	"\n" +
-	"#proto/hoststatus/peer/v1/peer.proto\x12\x12hoststatus.peer.v1\"\xde\x04\n" +
+	"#proto/hoststatus/peer/v1/peer.proto\x12\x12hoststatus.peer.v1\"\x9d\x05\n" +
 	"\x05Frame\x121\n" +
 	"\x05hello\x18\x01 \x01(\v2\x19.hoststatus.peer.v1.HelloH\x00R\x05hello\x12=\n" +
 	"\theartbeat\x18\x02 \x01(\v2\x1d.hoststatus.peer.v1.HeartbeatH\x00R\theartbeat\x12J\n" +
@@ -875,7 +1051,9 @@ const file_proto_hoststatus_peer_v1_peer_proto_rawDesc = "" +
 	"\tinventory\x18\x06 \x01(\v2\x1d.hoststatus.peer.v1.InventoryH\x00R\tinventory\x12J\n" +
 	"\x0erecord_request\x18\a \x01(\v2!.hoststatus.peer.v1.RecordRequestH\x00R\rrecordRequest\x127\n" +
 	"\arecords\x18\b \x01(\v2\x1b.hoststatus.peer.v1.RecordsH\x00R\arecords\x12F\n" +
-	"\freachability\x18\t \x01(\v2 .hoststatus.peer.v1.ReachabilityH\x00R\freachabilityB\x06\n" +
+	"\freachability\x18\t \x01(\v2 .hoststatus.peer.v1.ReachabilityH\x00R\freachability\x12=\n" +
+	"\arenewal\x18\n" +
+	" \x01(\v2!.hoststatus.peer.v1.RenewalStreamH\x00R\arenewalB\x06\n" +
 	"\x04body\"\x8a\x01\n" +
 	"\x05Hello\x12\x18\n" +
 	"\aversion\x18\x01 \x01(\rR\aversion\x12\x17\n" +
@@ -924,9 +1102,18 @@ const file_proto_hoststatus_peer_v1_peer_proto_rawDesc = "" +
 	"\rRecordRequest\x12\x10\n" +
 	"\x03ids\x18\x01 \x03(\tR\x03ids\"?\n" +
 	"\aRecords\x124\n" +
-	"\x05nodes\x18\x01 \x03(\v2\x1e.hoststatus.peer.v1.NodeRecordR\x05nodes\"3\n" +
+	"\x05nodes\x18\x01 \x03(\v2\x1e.hoststatus.peer.v1.NodeRecordR\x05nodes\"V\n" +
 	"\fReachability\x12#\n" +
-	"\rconnected_ids\x18\x01 \x03(\tR\fconnectedIds2K\n" +
+	"\rconnected_ids\x18\x01 \x03(\tR\fconnectedIds\x12!\n" +
+	"\frenewal_path\x18\x02 \x03(\tR\vrenewalPath\"\x8e\x01\n" +
+	"\rRenewalStream\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x125\n" +
+	"\x04open\x18\x02 \x01(\v2\x1f.hoststatus.peer.v1.RenewalOpenH\x00R\x04open\x12\x14\n" +
+	"\x04data\x18\x03 \x01(\fH\x00R\x04data\x12\x16\n" +
+	"\x05close\x18\x04 \x01(\bH\x00R\x05closeB\b\n" +
+	"\x06action\"!\n" +
+	"\vRenewalOpen\x12\x12\n" +
+	"\x04path\x18\x01 \x03(\tR\x04path2K\n" +
 	"\aPeering\x12@\n" +
 	"\x04Link\x12\x19.hoststatus.peer.v1.Frame\x1a\x19.hoststatus.peer.v1.Frame(\x010\x01BJZHgithub.com/TakashiSasaki/host-status-mcp/proto/hoststatus/peer/v1;peerv1b\x06proto3"
 
@@ -942,7 +1129,7 @@ func file_proto_hoststatus_peer_v1_peer_proto_rawDescGZIP() []byte {
 	return file_proto_hoststatus_peer_v1_peer_proto_rawDescData
 }
 
-var file_proto_hoststatus_peer_v1_peer_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
+var file_proto_hoststatus_peer_v1_peer_proto_msgTypes = make([]protoimpl.MessageInfo, 15)
 var file_proto_hoststatus_peer_v1_peer_proto_goTypes = []any{
 	(*Frame)(nil),          // 0: hoststatus.peer.v1.Frame
 	(*Hello)(nil),          // 1: hoststatus.peer.v1.Hello
@@ -956,7 +1143,9 @@ var file_proto_hoststatus_peer_v1_peer_proto_goTypes = []any{
 	(*RecordRequest)(nil),  // 9: hoststatus.peer.v1.RecordRequest
 	(*Records)(nil),        // 10: hoststatus.peer.v1.Records
 	(*Reachability)(nil),   // 11: hoststatus.peer.v1.Reachability
-	nil,                    // 12: hoststatus.peer.v1.StatusResponse.SectionErrorsEntry
+	(*RenewalStream)(nil),  // 12: hoststatus.peer.v1.RenewalStream
+	(*RenewalOpen)(nil),    // 13: hoststatus.peer.v1.RenewalOpen
+	nil,                    // 14: hoststatus.peer.v1.StatusResponse.SectionErrorsEntry
 }
 var file_proto_hoststatus_peer_v1_peer_proto_depIdxs = []int32{
 	1,  // 0: hoststatus.peer.v1.Frame.hello:type_name -> hoststatus.peer.v1.Hello
@@ -968,17 +1157,19 @@ var file_proto_hoststatus_peer_v1_peer_proto_depIdxs = []int32{
 	9,  // 6: hoststatus.peer.v1.Frame.record_request:type_name -> hoststatus.peer.v1.RecordRequest
 	10, // 7: hoststatus.peer.v1.Frame.records:type_name -> hoststatus.peer.v1.Records
 	11, // 8: hoststatus.peer.v1.Frame.reachability:type_name -> hoststatus.peer.v1.Reachability
-	2,  // 9: hoststatus.peer.v1.Hello.node:type_name -> hoststatus.peer.v1.NodeRecord
-	12, // 10: hoststatus.peer.v1.StatusResponse.section_errors:type_name -> hoststatus.peer.v1.StatusResponse.SectionErrorsEntry
-	7,  // 11: hoststatus.peer.v1.Inventory.versions:type_name -> hoststatus.peer.v1.RecordVersion
-	2,  // 12: hoststatus.peer.v1.Records.nodes:type_name -> hoststatus.peer.v1.NodeRecord
-	0,  // 13: hoststatus.peer.v1.Peering.Link:input_type -> hoststatus.peer.v1.Frame
-	0,  // 14: hoststatus.peer.v1.Peering.Link:output_type -> hoststatus.peer.v1.Frame
-	14, // [14:15] is the sub-list for method output_type
-	13, // [13:14] is the sub-list for method input_type
-	13, // [13:13] is the sub-list for extension type_name
-	13, // [13:13] is the sub-list for extension extendee
-	0,  // [0:13] is the sub-list for field type_name
+	12, // 9: hoststatus.peer.v1.Frame.renewal:type_name -> hoststatus.peer.v1.RenewalStream
+	2,  // 10: hoststatus.peer.v1.Hello.node:type_name -> hoststatus.peer.v1.NodeRecord
+	14, // 11: hoststatus.peer.v1.StatusResponse.section_errors:type_name -> hoststatus.peer.v1.StatusResponse.SectionErrorsEntry
+	7,  // 12: hoststatus.peer.v1.Inventory.versions:type_name -> hoststatus.peer.v1.RecordVersion
+	2,  // 13: hoststatus.peer.v1.Records.nodes:type_name -> hoststatus.peer.v1.NodeRecord
+	13, // 14: hoststatus.peer.v1.RenewalStream.open:type_name -> hoststatus.peer.v1.RenewalOpen
+	0,  // 15: hoststatus.peer.v1.Peering.Link:input_type -> hoststatus.peer.v1.Frame
+	0,  // 16: hoststatus.peer.v1.Peering.Link:output_type -> hoststatus.peer.v1.Frame
+	16, // [16:17] is the sub-list for method output_type
+	15, // [15:16] is the sub-list for method input_type
+	15, // [15:15] is the sub-list for extension type_name
+	15, // [15:15] is the sub-list for extension extendee
+	0,  // [0:15] is the sub-list for field type_name
 }
 
 func init() { file_proto_hoststatus_peer_v1_peer_proto_init() }
@@ -996,6 +1187,12 @@ func file_proto_hoststatus_peer_v1_peer_proto_init() {
 		(*Frame_RecordRequest)(nil),
 		(*Frame_Records)(nil),
 		(*Frame_Reachability)(nil),
+		(*Frame_Renewal)(nil),
+	}
+	file_proto_hoststatus_peer_v1_peer_proto_msgTypes[12].OneofWrappers = []any{
+		(*RenewalStream_Open)(nil),
+		(*RenewalStream_Data)(nil),
+		(*RenewalStream_Close)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -1003,7 +1200,7 @@ func file_proto_hoststatus_peer_v1_peer_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_hoststatus_peer_v1_peer_proto_rawDesc), len(file_proto_hoststatus_peer_v1_peer_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   13,
+			NumMessages:   15,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

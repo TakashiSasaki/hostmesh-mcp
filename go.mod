@@ -8,6 +8,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/modelcontextprotocol/go-sdk v1.7.0
 	github.com/shirou/gopsutil/v4 v4.26.10
+	github.com/smallstep/pkcs7 v0.2.3
 	golang.org/x/sys v0.48.0
 )
 

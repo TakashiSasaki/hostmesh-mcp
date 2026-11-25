@@ -38,6 +38,8 @@ type Directory interface {
 }
 
 type Config struct {
+	Renewal                RenewalConfig
+	CertFile               string
 	TLS                    *PeerTLS
 	HideInterfaceAddresses bool
 	Seeds                  []string
@@ -48,17 +50,19 @@ type Config struct {
 
 type Peer struct {
 	wire.UnimplementedPeeringServer
-	ctx       context.Context
-	cancel    context.CancelFunc
-	server    *grpc.Server
-	wg        sync.WaitGroup
-	log       *slog.Logger
-	dir       Directory
-	collect   status.Collector
-	config    Config
-	dial      func(context.Context, string) (net.Conn, error)
-	jobs      chan struct{}
-	relayJobs chan struct{}
+	ctx         context.Context
+	cancel      context.CancelFunc
+	server      *grpc.Server
+	wg          sync.WaitGroup
+	log         *slog.Logger
+	dir         Directory
+	collect     status.Collector
+	config      Config
+	dial        func(context.Context, string) (net.Conn, error)
+	jobs        chan struct{}
+	relayJobs   chan struct{}
+	renewalJobs chan struct{}
+	renewed     chan struct{}
 
 	mu      sync.RWMutex
 	links   map[string]*link
@@ -80,6 +84,7 @@ func Start(ctx context.Context, cfg Config, listener net.Listener, dir Directory
 	}
 	p := &Peer{
 		ctx: ctx, cancel: cancel, dir: dir, collect: collect, config: cfg, dial: dial, log: logger,
+		renewalJobs: make(chan struct{}, 16), renewed: make(chan struct{}),
 		jobs: make(chan struct{}, maxRequests), relayJobs: make(chan struct{}, maxRequests), links: make(map[string]*link),
 		seen: make(map[string]time.Time), seedIDs: make(map[string]string), dirty: make(chan struct{}, 1),
 	}
@@ -98,6 +103,9 @@ func Start(ctx context.Context, cfg Config, listener net.Listener, dir Directory
 		})
 	}
 	p.wg.Go(p.manage)
+	if cfg.TLS != nil && cfg.Renewal.URL != "" {
+		p.wg.Go(p.manageRenewal)
+	}
 	return p
 }
 

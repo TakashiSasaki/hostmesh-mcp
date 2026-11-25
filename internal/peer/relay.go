@@ -33,7 +33,8 @@ func (p *Peer) relayForLocked(target string) *link {
 }
 
 func (p *Peer) broadcastReachability() {
-	if !p.dir.Self().Relay {
+	self := p.dir.Self()
+	if !self.Relay && !p.config.Renewal.offersRoute() {
 		return
 	}
 	p.mu.RLock()
@@ -41,13 +42,22 @@ func (p *Peer) broadcastReachability() {
 	ids := make([]string, 0, len(p.links))
 	for id, l := range p.links {
 		if live(l) {
-			ids = append(ids, id)
+			if self.Relay {
+				ids = append(ids, id)
+			}
 			links = append(links, l)
+		}
+	}
+	var path []string
+	if p.config.TLS != nil && p.config.Renewal.offersRoute() {
+		next := p.renewalPathLocked()
+		if p.config.Renewal.Gateway != "" || len(next) > 0 && len(next) < maxRenewalHops {
+			path = append([]string{self.ID}, next...)
 		}
 	}
 	p.mu.RUnlock()
 	sort.Strings(ids)
-	msg := &wire.Frame{Body: &wire.Frame_Reachability{Reachability: &wire.Reachability{ConnectedIds: ids}}}
+	msg := &wire.Frame{Body: &wire.Frame_Reachability{Reachability: &wire.Reachability{ConnectedIds: ids, RenewalPath: path}}}
 	for _, l := range links {
 		l.send(msg)
 	}
@@ -58,6 +68,9 @@ func (l *link) receiveReachability(report *wire.Reachability) bool {
 		return false
 	}
 	p := l.owner
+	if !l.updateRenewalPath(report.RenewalPath) {
+		return false
+	}
 	if !p.trustsRelay(l.remote) {
 		return true
 	}

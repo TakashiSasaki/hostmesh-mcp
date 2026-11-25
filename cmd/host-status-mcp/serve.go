@@ -31,13 +31,14 @@ type config struct {
 }
 
 type peerConfig struct {
-	CAFile         string   `json:"ca_file,omitempty"`
-	CertFile       string   `json:"cert_file,omitempty"`
-	KeyFile        string   `json:"key_file,omitempty"`
-	Security       string   `json:"security,omitempty"`
-	Listen         string   `json:"listen,omitempty"`
-	Advertise      []string `json:"advertise,omitempty"`
-	Seeds          seedList `json:"seeds,omitzero"`
+	Renewal        *peer.RenewalConfig `json:"renewal,omitempty"`
+	CAFile         string              `json:"ca_file,omitempty"`
+	CertFile       string              `json:"cert_file,omitempty"`
+	KeyFile        string              `json:"key_file,omitempty"`
+	Security       string              `json:"security,omitempty"`
+	Listen         string              `json:"listen,omitempty"`
+	Advertise      []string            `json:"advertise,omitempty"`
+	Seeds          seedList            `json:"seeds,omitzero"`
 	seedSource     string
 	ShareAddresses *bool    `json:"share_addresses,omitempty"`
 	Relay          bool     `json:"relay,omitempty"`
@@ -103,6 +104,14 @@ func readConfig(path string) (config, error) {
 		return c, fmt.Errorf("peer.security %q conflicts with mode %q selected by certificate settings", c.Peer.Security, mode)
 	}
 	c.Peer.Security = mode
+	if c.Peer.Renewal != nil {
+		if mode != "mtls" {
+			return c, fmt.Errorf("peer.renewal requires mTLS")
+		}
+		if err := c.Peer.Renewal.Validate(); err != nil {
+			return c, err
+		}
+	}
 	if c.Peer.Listen == "" && len(c.Peer.Advertise) != 0 {
 		return c, fmt.Errorf("peer.advertise requires peer.listen")
 	}
@@ -157,6 +166,26 @@ func (c *config) preparePeering() (*peer.PeerTLS, error) {
 	if err != nil {
 		return nil, err
 	}
+	if c.Peer.Renewal != nil && c.Peer.Renewal.URL != "" {
+		if security == nil || !slices.Contains(security.LocalCertificate().ExtKeyUsage, x509.ExtKeyUsageClientAuth) {
+			return nil, errors.New("automatic renewal requires a peer certificate with clientAuth")
+		}
+		// Replacing the public bundle must never remove a key or trust anchor,
+		// including when the operator uses hard links or symlinks.
+		leafFile, err := os.Stat(c.Peer.CertFile)
+		if err != nil {
+			return nil, err
+		}
+		for _, path := range []string{c.Peer.KeyFile, c.Peer.CAFile} {
+			other, err := os.Stat(path)
+			if err != nil {
+				return nil, err
+			}
+			if os.SameFile(leafFile, other) {
+				return nil, errors.New("automatic renewal requires cert_file separate from key_file and ca_file")
+			}
+		}
+	}
 	c.Peer.seedSource = "none"
 	if c.Peer.Seeds != nil {
 		c.Peer.seedSource = "config"
@@ -175,7 +204,25 @@ func (c *config) preparePeering() (*peer.PeerTLS, error) {
 	return security, nil
 }
 
+var errCertificateRenewed = errors.New("certificate renewed")
+
 func serve(ctx context.Context, version string, c config, security *peer.PeerTLS) error {
+	for {
+		err := serveGeneration(ctx, version, &c, security)
+		if !errors.Is(err, errCertificateRenewed) || ctx.Err() != nil {
+			return err
+		}
+		if c.Peer.seedSource == "certificate" {
+			c.Peer.Seeds = nil
+		}
+		security, err = c.preparePeering()
+		if err != nil {
+			return fmt.Errorf("activate renewed certificate: %w", err)
+		}
+	}
+}
+
+func serveGeneration(ctx context.Context, version string, c *config, security *peer.PeerTLS) error {
 	if c.StateDir == "" {
 		var err error
 		c.StateDir, err = defaultStateDir()
@@ -223,7 +270,18 @@ func serve(ctx context.Context, version string, c config, security *peer.PeerTLS
 		}
 		defer peerListener.Close()
 	}
-	p := peer.Start(ctx, peer.Config{TLS: security, Seeds: c.Peer.Seeds, DenyNodes: c.Peer.DenyNodes, TrustedRelays: c.Peer.TrustedRelays, HideInterfaceAddresses: !shareAddresses, Refresh: func() (bool, error) {
+	// Retain assigned ports across in-process service restarts.
+	if peerListener != nil {
+		c.Peer.Listen = peerListener.Addr().String()
+	}
+	if mcpListener != nil {
+		c.MCPListen = mcpListener.Addr().String()
+	}
+	var renewal peer.RenewalConfig
+	if c.Peer.Renewal != nil {
+		renewal = *c.Peer.Renewal
+	}
+	p := peer.Start(ctx, peer.Config{Renewal: renewal, CertFile: c.Peer.CertFile, TLS: security, Seeds: c.Peer.Seeds, DenyNodes: c.Peer.DenyNodes, TrustedRelays: c.Peer.TrustedRelays, HideInterfaceAddresses: !shareAddresses, Refresh: func() (bool, error) {
 		info, err := readNode()
 		if err != nil {
 			return false, err
@@ -239,6 +297,8 @@ func serve(ctx context.Context, version string, c config, security *peer.PeerTLS
 		select {
 		case <-ctx.Done():
 			return nil
+		case <-p.Renewed():
+			return errCertificateRenewed
 		case <-p.Done():
 			if ctx.Err() != nil {
 				return nil
@@ -252,7 +312,7 @@ func serve(ctx context.Context, version string, c config, security *peer.PeerTLS
 		leaf = security.LocalCertificate()
 	}
 	runtimePeer := mcpserver.PeerSettings{
-		Security: c.Peer.Security, Advertise: c.Peer.Advertise, Seeds: c.Peer.Seeds,
+		Renewal: (*mcpserver.RenewalSettings)(c.Peer.Renewal), Security: c.Peer.Security, Advertise: c.Peer.Advertise, Seeds: c.Peer.Seeds,
 		SeedSource: c.Peer.seedSource, ShareAddresses: shareAddresses, Relay: c.Peer.Relay,
 		TrustedRelays: c.Peer.TrustedRelays, DenyNodes: c.Peer.DenyNodes,
 	}
@@ -278,6 +338,8 @@ func serve(ctx context.Context, version string, c config, security *peer.PeerTLS
 			return err
 		}
 	case <-ctx.Done():
+	case <-p.Renewed():
+		err = errCertificateRenewed
 	case <-p.Done():
 		if ctx.Err() == nil {
 			server.Close()
@@ -289,7 +351,7 @@ func serve(ctx context.Context, version string, c config, security *peer.PeerTLS
 	if err := server.Shutdown(stopCtx); err != nil {
 		server.Close()
 	}
-	return nil
+	return err
 }
 
 func defaultStateDir() (string, error) {

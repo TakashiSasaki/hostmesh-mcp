@@ -4,8 +4,11 @@ package main
 
 import (
 	"archive/zip"
+	"bytes"
 	"context"
+	"crypto/x509"
 	"encoding/json"
+	"encoding/pem"
 	"fmt"
 	"io/fs"
 	"net"
@@ -19,15 +22,18 @@ import (
 	"testing"
 	"time"
 
+	"github.com/TakashiSasaki/host-status-mcp/internal/peer"
 	"github.com/TakashiSasaki/host-status-mcp/internal/status"
 	"github.com/google/uuid"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-func TestDockerRelay(t *testing.T)     { testDockerRelay(t, false) }
-func TestDockerMTLSRelay(t *testing.T) { testDockerRelay(t, true) }
+func TestDockerRelay(t *testing.T)     { testDockerRelay(t, false, false) }
+func TestDockerMTLSRelay(t *testing.T) { testDockerRelay(t, true, false) }
 
-func testDockerRelay(t *testing.T, mtls bool) {
+func TestDockerMeshCertificateRenewal(t *testing.T) { testDockerRelay(t, true, true) }
+
+func testDockerRelay(t *testing.T, mtls, renewal bool) {
 	if os.Getenv("HOST_STATUS_DOCKER_TEST") != "1" {
 		t.Skip("set HOST_STATUS_DOCKER_TEST=1 to use the local Docker daemon")
 	}
@@ -108,7 +114,19 @@ func testDockerRelay(t *testing.T, mtls bool) {
 		}
 		cfg.StateDir = "/state"
 		if mtls {
-			files := ca.issue(t, uuid.NewString(), time.Now().Add(time.Hour), name)
+			until := time.Now().Add(time.Hour)
+			if renewal {
+				switch name {
+				case a:
+					until = time.Now().Add(3 * time.Minute)
+					cfg.Peer.Renewal = &peer.RenewalConfig{URL: estURL}
+				case c:
+					cfg.Peer.Renewal = &peer.RenewalConfig{Relay: true}
+				case b:
+					cfg.Peer.Renewal = &peer.RenewalConfig{Gateway: "127.0.0.1:9443"}
+				}
+			}
+			files := ca.issue(t, uuid.NewString(), until, name)
 			for filename, source := range map[string]string{"ca.pem": files.CAFile, "node.pem": files.CertFile, "node.key": files.KeyFile} {
 				data, err := os.ReadFile(source)
 				if err != nil {
@@ -189,6 +207,42 @@ func testDockerRelay(t *testing.T, mtls bool) {
 	probe(b, "tcp-blocked", aEndpoint)
 
 	bID := nodeID(b)
+	if renewal {
+		// The EST authority only listens on the gateway's loopback device.
+		// Its key mount is owned by a separate container. No peer receives it.
+		issuerDir := filepath.Join(root, "issuer")
+		if err := os.Mkdir(issuerDir, 0700); err != nil {
+			t.Fatal(err)
+		}
+		fixtureESTFiles(t, issuerDir, ca)
+		originalKey := readFile(t, filepath.Join(root, a, "node.key"))
+		originalCert := readFile(t, filepath.Join(root, a, "node.pem"))
+		originID := nodeID(a)
+		issuer := prefix + "-issuer"
+		run("docker", "run", "-d", "--pull=never", "--name", issuer, "--network", "container:"+b,
+			"--user", fmt.Sprintf("%d:%d", os.Getuid(), os.Getgid()), "--cap-drop=ALL", "--read-only",
+			"--mount", "type=bind,source="+issuerDir+",destination=/issuer,readonly", "--env", "HOST_STATUS_FIXTURE_CA=1",
+			"--entrypoint", "/probe", image, "-test.run=^TestDockerRenewalCA$")
+		t.Cleanup(func() { remove("container", "rm", "-f", issuer) })
+		probe(b, "tcp-open", "127.0.0.1:9443")
+		probe(a, "tcp-blocked", "127.0.0.1:9443")
+		probe(c, "tcp-blocked", "127.0.0.1:9443")
+		host, _, _ := net.SplitHostPort(bEndpoint)
+		probe(a, "tcp-blocked", net.JoinHostPort(host, "9443"))
+		deadline := time.Now().Add(25 * time.Second)
+		for bytes.Equal(readFile(t, filepath.Join(root, a, "node.pem")), originalCert) {
+			if time.Now().After(deadline) {
+				t.Fatalf("no renewal: %s", run("docker", "logs", "--tail", "12", a))
+			}
+			time.Sleep(100 * time.Millisecond)
+		}
+		if !bytes.Equal(originalKey, readFile(t, filepath.Join(root, a, "node.key"))) {
+			t.Fatal("changed applicant key")
+		}
+		probe(a, "renewed", originID)
+		probe(a, "relay", bID, initialC, b, bEndpoint)
+		return
+	}
 	probe(a, "relay", bID, initialC, b, bEndpoint)
 	run("docker", "restart", c)
 	probe(a, "relay", bID, initialC, b, bEndpoint)
@@ -226,6 +280,14 @@ func TestDockerNodeProbe(t *testing.T) {
 			t.Fatalf("%s %s: %v", args[0], args[1], err)
 		}
 		t.Logf("%s %s", args[0], args[1])
+	case "renewed":
+		data := readFile(t, "/state/node.pem")
+		block, _ := pem.Decode(data)
+		leaf, err := x509.ParseCertificate(block.Bytes)
+		if err != nil || time.Until(leaf.NotAfter) < 40*time.Minute {
+			t.Fatal("short-lived original certificate still on disk")
+		}
+		checkRenewedService(t, "http://127.0.0.1:8787/mcp", args[1], data)
 	case "relay":
 		if len(args) != 5 {
 			t.Fatal("relay probe needs target ID, relay ID, target hostname and target address")

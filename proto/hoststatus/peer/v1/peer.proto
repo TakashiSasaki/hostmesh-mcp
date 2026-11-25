@@ -17,6 +17,7 @@ message Frame {
     RecordRequest record_request = 7;
     Records records = 8;
     Reachability reachability = 9;
+    RenewalStream renewal = 10;
   }
 }
 
@@ -83,4 +84,20 @@ message Records {
 
 message Reachability {
   repeated string connected_ids = 1;
+  // Ordered mTLS peers from the advertising relay to its fixed CA gateway.
+  repeated string renewal_path = 2;
+}
+
+// Multiplex a bounded end-to-end CA TLS exchange over existing Link streams.
+message RenewalStream {
+  string id = 1;
+  oneof action {
+    RenewalOpen open = 2;
+    bytes data = 3;
+    bool close = 4;
+  }
+}
+
+message RenewalOpen {
+  repeated string path = 1;
 }

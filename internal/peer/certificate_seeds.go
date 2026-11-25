@@ -15,7 +15,11 @@ const MaxSeeds = 16
 // Read only the local leaf, after chain verification. Remote certificates are
 // also carried in discovery records and must never supply bootstrap targets.
 func (s *PeerTLS) BootstrapSeeds() ([]string, error) {
-	for _, ext := range s.LocalCertificate().Extensions {
+	return certificateSeeds(s.LocalCertificate())
+}
+
+func certificateSeeds(leaf *x509.Certificate) ([]string, error) {
+	for _, ext := range leaf.Extensions {
 		if !ext.Id.Equal(seedExtensionOID) {
 			continue
 		}
