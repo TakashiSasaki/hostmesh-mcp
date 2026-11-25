@@ -4,6 +4,8 @@ Linux・macOS 対応。MCP からローカルまたは別ホストの OS、稼�
 
 macOS 版は Apple Silicon と Intel に対応する。`stdio` と `serve` の両方でプロセス情報を読み取れる。`process_kill` は登録せず、`server_config.allow_process_kill` は常に `false` を返す。ディスク一覧には APFS コンテナとボリュームを含む。コンテナ内の空き容量は共有される。バイナリの自動更新と `supervise` は Linux 用。mTLS の証明書更新は両 OS で利用できる。
 
+[インストールガイド（Linux・macOS・Windows）](INSTALL.md)
+
 ## ビルドと単体起動
 
 ```sh
