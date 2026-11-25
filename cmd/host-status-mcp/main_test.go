@@ -19,10 +19,8 @@ func TestEntrypoint(t *testing.T) {
 	if i < 0 {
 		return
 	}
-	if err := run(context.Background(), os.Args[i+1:]); err != nil {
-		os.Stderr.WriteString(err.Error())
-		os.Exit(1)
-	}
+	os.Args = append([]string{os.Args[0]}, os.Args[i+1:]...)
+	main()
 	os.Exit(0)
 }
 

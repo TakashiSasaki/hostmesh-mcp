@@ -25,9 +25,19 @@ func appCommand(ctx context.Context, args ...string) *exec.Cmd {
 	return exec.CommandContext(ctx, os.Args[0], append([]string{"-test.run=^TestEntrypoint$", "--"}, args...)...)
 }
 
-type readyProcess struct{ id, peer, mcp string }
+type readyProcess struct {
+	id, peer, mcp string
+	process       *os.Process
+	exited        <-chan error
+}
 
 func startServeProcess(t *testing.T, c config) readyProcess {
+	t.Helper()
+	return startServeBinary(t, c, "", strings.TrimSpace(versionFile))
+}
+
+// An explicit binary lets the overlap test run an earlier release alongside this build.
+func startServeBinary(t *testing.T, c config, binary, version string) readyProcess {
 	t.Helper()
 	dir := t.TempDir()
 	c.StateDir = filepath.Join(dir, "state")
@@ -40,7 +50,12 @@ func startServeProcess(t *testing.T, c config) readyProcess {
 		t.Fatal(err)
 	}
 	ctx, cancel := context.WithCancel(t.Context())
-	cmd := appCommand(ctx, "serve", "-config", path)
+	var cmd *exec.Cmd
+	if binary == "" {
+		cmd = appCommand(ctx, "serve", "-config", path)
+	} else {
+		cmd = exec.CommandContext(ctx, binary, "serve", "-config", path)
+	}
 	stderr, err := cmd.StderrPipe()
 	if err != nil {
 		cancel()
@@ -50,10 +65,15 @@ func startServeProcess(t *testing.T, c config) readyProcess {
 		cancel()
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { cancel(); cmd.Wait() })
+	exited := make(chan error, 1)
+	t.Cleanup(func() { cancel(); <-exited })
 	ready := make(chan string, 3)
 	go func() {
-		defer close(ready)
+		defer func() {
+			close(ready)
+			exited <- cmd.Wait()
+			close(exited)
+		}()
 		scan := bufio.NewScanner(stderr)
 		for scan.Scan() {
 			line := scan.Text()
@@ -64,7 +84,7 @@ func startServeProcess(t *testing.T, c config) readyProcess {
 	}()
 	deadline := time.NewTimer(8 * time.Second)
 	defer deadline.Stop()
-	var r readyProcess
+	r := readyProcess{process: cmd.Process, exited: exited}
 	for r.id == "" || c.Peer.Listen != "" && r.peer == "" || c.MCPListen != "" && r.mcp == "" {
 		select {
 		case line, ok := <-ready:
@@ -73,7 +93,7 @@ func startServeProcess(t *testing.T, c config) readyProcess {
 			}
 			switch {
 			case strings.HasPrefix(line, "host-status-mcp "):
-				want := "host-status-mcp " + strings.TrimSpace(versionFile) + " node_id="
+				want := "host-status-mcp " + version + " node_id="
 				id, ok := strings.CutPrefix(line, want)
 				if !ok {
 					t.Fatalf("wrong version in startup message: %s", line)

@@ -74,3 +74,15 @@ Docker 試験ではホスト側でバイナリをビルドし、外部のベー�
 証明書のシードだけで実プロセス間の mTLS 接続を確立し、状態を照会する。シードの設定による上書き、空配列、不正な候補、上限超過は `config check` でも確認する。`server_config` は stdio と、平文・mTLS それぞれのピアの HTTP 入口で呼び出す。起動後に証明書ファイルを書き換えてから、稼働中の証明書の要約と PEM を照合する。
 
 Docker の mTLS 試験は `HOST_STATUS_DOCKER_TEST=1 go test -count=1 -v ./cmd/host-status-mcp -run '^TestDockerMTLSRelay$'` で実行できる。テスト専用鍵はノードごとの一時ディレクトリに配置する。
+
+## 同一ホストでの新旧プロセスの切り替え
+
+`TestSameHostUpgrade` は Linux 上で新旧プロセスと照会元の 3 プロセスを起動する。照会元から名前と IP を共有する新旧それぞれの UUID を指定してバージョンを照合し、旧プロセスへの `SIGTERM` と正常終了の後、同じ MCP セッションから新版を再照会する。平文と、同一 CA から別々の UUID に発行した証明書による mTLS の両方を試す。
+
+通常の `go test ./...` は現ソースを両方の役に使う。異なる版を検証するときはビルド済みバイナリのパスを渡す。
+
+```sh
+HOST_STATUS_PREVIOUS_BINARY=/path/to/old/host-status-mcp \
+HOST_STATUS_TEST_BINARY=/path/to/new/host-status-mcp \
+go test -count=1 -v ./cmd/host-status-mcp -run '^TestSameHostUpgrade$'
+```
