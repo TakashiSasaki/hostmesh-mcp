@@ -187,7 +187,7 @@ func TestSystemdUpdate(t *testing.T) {
 		}
 	})
 	target := updateTarget{Unit: c.Unit, User: true, StateDir: stateDir, NodeID: id, Endpoint: "http://" + addr + "/mcp", Observer: c.Observer, Previous: vOld}
-	if err := target.startAndVerify(t.Context(), c.Binary, vOld); err != nil {
+	if err := target.startAndVerify(t.Context(), target, c.Binary, vOld, false); err != nil {
 		t.Fatal(err)
 	}
 	update := func(action string) (string, error) {
@@ -293,7 +293,7 @@ func TestSystemdUpdate(t *testing.T) {
 	write("host-status-mcp", read(old), 0700)
 	write("peer.json", asJSON(config{StateDir: stateDir, Peer: p}), 0600)
 	target.Endpoint = ""
-	if err := target.startAndVerify(t.Context(), c.Binary, vOld); err != nil {
+	if err := target.startAndVerify(t.Context(), target, c.Binary, vOld, false); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := update("apply"); err != nil {
@@ -301,5 +301,40 @@ func TestSystemdUpdate(t *testing.T) {
 	}
 	if err := target.probe(t.Context(), vNext); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestSupervisorSettings(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "updater.json")
+	for _, tc := range []struct {
+		config, unit, interval string
+		user, valid            bool
+	}{
+		{"/peer.json", "", "", false, true},
+		{"/peer.json", "", "15m", false, true},
+		{"relative.json", "", "", false, false},
+		{"/peer.json", "peer.service", "", false, false},
+		{"/peer.json", "", "", true, false},
+		{"/peer.json", "", "0s", false, false},
+		{"", "peer.service", "15m", false, false},
+		{"", "peer.service", "", true, true},
+	} {
+		settings := updateSettings{ManifestURL: "https://example.org/release.json", Binary: "/bin/peer", PublicKeyFile: "/release.pub", PeerConfig: tc.config, Unit: tc.unit, UserService: tc.user, CheckInterval: tc.interval}
+		b, err := json.Marshal(settings)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, b, 0600); err != nil {
+			t.Fatal(err)
+		}
+		c, err := readUpdateSettings(path)
+		if (err == nil) != tc.valid {
+			t.Fatalf("%s: %v", b, err)
+		}
+		if err == nil && c.PeerConfig != "" && c.CheckInterval == "" {
+			if interval, err := c.interval(); err != nil || interval != 24*time.Hour {
+				t.Fatalf("default interval: %s, %v", interval, err)
+			}
+		}
 	}
 }

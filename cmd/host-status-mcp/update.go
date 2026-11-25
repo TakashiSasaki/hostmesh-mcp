@@ -34,19 +34,26 @@ func runUpdate(ctx context.Context, args []string) error {
 	if err != nil {
 		return err
 	}
+	manager := updateTarget{Unit: c.Unit, User: c.UserService}
 	pending := c.Binary + ".update-pending"
 	if args[0] == "apply" {
+		if c.PeerConfig != "" {
+			return errors.New("supervised peer: send SIGUSR1 to the supervisor to apply an update")
+		}
 		lock, err := lockUpdateFile(c.Binary+".update-lock", os.O_CREATE|os.O_RDWR)
 		if err != nil {
 			return err
 		}
 		defer lock.Close()
+		if err := cleanUpdateWork(pending); err != nil {
+			return err
+		}
 	}
 	if _, err := os.Lstat(pending); err == nil {
 		if args[0] == "check" {
-			return errors.New("unfinished update: use update apply to recover")
+			return errors.New("unfinished update: restart supervise or run systemd update apply with the original settings")
 		}
-		if err := restoreUpdate(ctx, c, pending); err != nil {
+		if err := restoreUpdate(ctx, c, pending, manager); err != nil {
 			return fmt.Errorf("recover interrupted update: %w", err)
 		}
 		fmt.Println("Recovered previous service; retry apply to check for a release")
@@ -55,6 +62,11 @@ func runUpdate(ctx context.Context, args []string) error {
 		return err
 	}
 
+	return updatePeer(ctx, ctx, c, manager, args[0] == "check")
+}
+
+// Preparation may be cancelled independently if the monitored child exits.
+func updatePeer(ctx, prep context.Context, c updateSettings, manager peerController, checkOnly bool) error {
 	info, err := os.Lstat(c.Binary)
 	if err != nil {
 		return err
@@ -62,11 +74,11 @@ func runUpdate(ctx context.Context, args []string) error {
 	if !info.Mode().IsRegular() {
 		return fmt.Errorf("binary must be a regular standalone executable: %s", c.Binary)
 	}
-	current, err := commandOutput(ctx, "", c.Binary, "version")
+	current, err := commandOutput(prep, "", c.Binary, "version")
 	if err != nil {
 		return err
 	}
-	version, artifact, err := loadRelease(ctx, c)
+	version, artifact, err := loadRelease(prep, c)
 	if err != nil {
 		return err
 	}
@@ -75,10 +87,10 @@ func runUpdate(ctx context.Context, args []string) error {
 		return err
 	}
 	fmt.Printf("Installed %s, published %s\n", current, version)
-	if !newer || args[0] == "check" {
+	if !newer || checkOnly {
 		return nil
 	}
-	return applyRelease(ctx, c, pending, current, version, artifact, info.Mode().Perm())
+	return applyRelease(ctx, prep, c, manager, c.Binary+".update-pending", current, version, artifact, info.Mode().Perm())
 }
 
 func lockUpdateFile(path string, flags int) (*os.File, error) {
@@ -131,25 +143,25 @@ func copyLedger(src, dst string) error {
 	return syncDir(filepath.Dir(dst))
 }
 
-func applyRelease(ctx context.Context, c updateSettings, pending, current, version string, a releaseArtifact, mode os.FileMode) error {
+func applyRelease(ctx, prep context.Context, c updateSettings, manager peerController, pending, current, version string, a releaseArtifact, mode os.FileMode) error {
 	parent := filepath.Dir(c.Binary)
-	stage, err := os.MkdirTemp(parent, ".host-status-stage-*")
-	if err != nil {
+	stage := pending + ".stage"
+	if err := os.Mkdir(stage, 0700); err != nil {
 		return err
 	}
 	defer os.RemoveAll(stage)
 	candidate := filepath.Join(stage, "candidate")
-	if err := stageRelease(ctx, candidate, a, mode); err != nil {
+	if err := stageRelease(prep, candidate, a, mode); err != nil {
 		return err
 	}
-	got, err := commandOutput(ctx, "", candidate, "version")
+	got, err := commandOutput(prep, "", candidate, "version")
 	if err != nil {
 		return err
 	}
 	if got != version {
 		return fmt.Errorf("candidate reports %q, manifest says %q", got, version)
 	}
-	target, err := inspectTarget(ctx, c, current, candidate)
+	target, err := inspectTarget(prep, c, manager, current, candidate)
 	if err != nil {
 		return err
 	}
@@ -179,11 +191,18 @@ func applyRelease(ctx context.Context, c updateSettings, pending, current, versi
 	if err := syncDir(parent); err != nil {
 		return err
 	}
-	if err := activateUpdate(ctx, c.Binary, pending, version, target); err != nil {
-		recovery, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	if err := activateUpdate(ctx, c.Binary, pending, version, target, manager); err != nil {
+		if c.PeerConfig != "" && ctx.Err() != nil {
+			return ctx.Err() // Leave the durable journal for supervisor startup.
+		}
+		parent := context.Background()
+		if c.PeerConfig != "" {
+			parent = ctx
+		}
+		recovery, cancel := context.WithTimeout(parent, 2*time.Minute)
 		defer cancel()
-		if recoveryErr := restoreUpdate(recovery, c, pending); recoveryErr != nil {
-			return errors.Join(err, fmt.Errorf("rollback incomplete (retry update apply): %w", recoveryErr))
+		if recoveryErr := restoreUpdate(recovery, c, pending, manager); recoveryErr != nil {
+			return errors.Join(err, fmt.Errorf("rollback incomplete: %w", recoveryErr))
 		}
 		return fmt.Errorf("update failed; restored %s: %w", current, err)
 	}
@@ -194,8 +213,8 @@ func applyRelease(ctx context.Context, c updateSettings, pending, current, versi
 	return nil
 }
 
-func activateUpdate(ctx context.Context, binary, pending, version string, t updateTarget) error {
-	if _, err := t.systemctl(ctx, "stop"); err != nil {
+func activateUpdate(ctx context.Context, binary, pending, version string, t updateTarget, manager peerController) error {
+	if err := manager.stop(ctx); err != nil {
 		return err
 	}
 	lock, err := lockUpdateFile(filepath.Join(t.StateDir, "state.lock"), os.O_RDWR)
@@ -213,22 +232,30 @@ func activateUpdate(ctx context.Context, binary, pending, version string, t upda
 	if err != nil {
 		return err
 	}
-	return t.startAndVerify(ctx, binary, version)
+	return t.startAndVerify(ctx, manager, binary, version, false)
 }
 
-func restoreUpdate(ctx context.Context, c updateSettings, pending string) error {
+func recoveryTarget(c updateSettings, pending string) (updateTarget, error) {
+	var t updateTarget
 	raw, err := os.ReadFile(filepath.Join(pending, "target.json"))
+	if err != nil {
+		return t, err
+	}
+	if err := decodeUpdateJSON(raw, &t); err != nil {
+		return t, err
+	}
+	if t.OwnerUID != os.Geteuid() || t.Unit != c.Unit || t.User != c.UserService || t.PeerConfig != c.PeerConfig {
+		return t, errors.New("pending update belongs to a different service")
+	}
+	return t, nil
+}
+
+func restoreUpdate(ctx context.Context, c updateSettings, pending string, manager peerController) error {
+	t, err := recoveryTarget(c, pending)
 	if err != nil {
 		return err
 	}
-	var t updateTarget
-	if err := decodeUpdateJSON(raw, &t); err != nil {
-		return err
-	}
-	if t.OwnerUID != os.Geteuid() || t.Unit != c.Unit || t.User != c.UserService {
-		return errors.New("pending update belongs to a different service")
-	}
-	if _, err := t.systemctl(ctx, "stop"); err != nil {
+	if err := manager.stop(ctx); err != nil {
 		return err
 	}
 	lock, err := lockUpdateFile(filepath.Join(t.StateDir, "state.lock"), os.O_RDWR)
@@ -240,10 +267,7 @@ func restoreUpdate(ctx context.Context, c updateSettings, pending string) error 
 	if err != nil {
 		return err
 	}
-	// A stopped unit may already have been garbage-collected by systemd.
-	// Drop any start-rate limit if present; start and the probe decide success.
-	_, _ = t.systemctl(ctx, "reset-failed")
-	if err := t.startAndVerify(ctx, c.Binary, t.Previous); err != nil {
+	if err := t.startAndVerify(ctx, manager, c.Binary, t.Previous, true); err != nil {
 		return err
 	}
 	return finishUpdate(pending)
@@ -273,17 +297,32 @@ func restoreFiles(binary, pending, stateDir string) error {
 	return copyLedger(backup, filepath.Join(stateDir, "state.json"))
 }
 
+// These sibling directories belong to this binary. Only their owner, holding
+// the update lock, may remove them. Neither one is an uncommitted journal.
+func cleanUpdateWork(pending string) error {
+	if err := os.RemoveAll(pending + ".stage"); err != nil {
+		return err
+	}
+	retired := pending + ".finished"
+	if _, err := os.Lstat(retired); errors.Is(err, os.ErrNotExist) {
+		return nil
+	} else if err != nil {
+		return err
+	}
+	if err := syncDir(filepath.Dir(pending)); err != nil {
+		return err
+	}
+	return os.RemoveAll(retired)
+}
+
 func finishUpdate(pending string) error {
-	// Remove the journal name atomically so a crash during cleanup cannot
-	// leave a half-deleted transaction for the next invocation to recover.
-	dir := filepath.Dir(pending)
-	discard, err := os.MkdirTemp(dir, ".host-status-finished-*")
-	if err != nil {
+	// Persist the commit (removal of the journal name) before deleting backups.
+	retired := pending + ".finished"
+	if err := os.Rename(pending, retired); err != nil {
 		return err
 	}
-	defer os.RemoveAll(discard)
-	if err := os.Rename(pending, filepath.Join(discard, "transaction")); err != nil {
+	if err := syncDir(filepath.Dir(pending)); err != nil {
 		return err
 	}
-	return syncDir(dir)
+	return os.RemoveAll(retired)
 }

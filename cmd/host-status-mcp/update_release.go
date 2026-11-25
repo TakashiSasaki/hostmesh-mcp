@@ -29,8 +29,10 @@ type updateSettings struct {
 	ManifestURL   string `json:"manifest_url"`
 	PublicKeyFile string `json:"public_key_file"`
 	Binary        string `json:"binary"`
-	Unit          string `json:"systemd_unit"`
-	UserService   bool   `json:"user_service"`
+	Unit          string `json:"systemd_unit,omitempty"`
+	UserService   bool   `json:"user_service,omitempty"`
+	PeerConfig    string `json:"peer_config,omitempty"`
+	CheckInterval string `json:"check_interval,omitempty"`
 	Observer      string `json:"observer_mcp_url,omitempty"`
 }
 
@@ -45,8 +47,18 @@ func readUpdateSettings(path string) (updateSettings, error) {
 	if err := decodeUpdateJSON(b, &c); err != nil {
 		return c, err
 	}
-	if !filepath.IsAbs(c.Binary) || !filepath.IsAbs(c.PublicKeyFile) || !unitName.MatchString(c.Unit) {
-		return c, errors.New("set absolute binary and public_key_file paths and a systemd_unit ending in .service")
+	if !filepath.IsAbs(c.Binary) || !filepath.IsAbs(c.PublicKeyFile) {
+		return c, errors.New("set absolute binary and public_key_file paths")
+	}
+	if c.PeerConfig != "" {
+		if !filepath.IsAbs(c.PeerConfig) || c.Unit != "" || c.UserService {
+			return c, errors.New("supervise requires an absolute peer_config and no systemd service")
+		}
+		if _, err := c.interval(); err != nil {
+			return c, err
+		}
+	} else if !unitName.MatchString(c.Unit) || c.CheckInterval != "" {
+		return c, errors.New("set systemd_unit ending in .service, or peer_config for supervise")
 	}
 	if _, err := updateURL(c.ManifestURL); err != nil {
 		return c, err
@@ -57,6 +69,17 @@ func readUpdateSettings(path string) (updateSettings, error) {
 		}
 	}
 	return c, nil
+}
+
+func (c updateSettings) interval() (time.Duration, error) {
+	if c.CheckInterval == "" {
+		return 24 * time.Hour, nil
+	}
+	d, err := time.ParseDuration(c.CheckInterval)
+	if err != nil || d <= 0 {
+		return 0, errors.New("check_interval must be a positive duration, e.g. 24h")
+	}
+	return d, nil
 }
 
 func decodeUpdateJSON(data []byte, dst any) error {

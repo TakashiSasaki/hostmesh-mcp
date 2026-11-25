@@ -102,6 +102,16 @@ HOST_STATUS_TEST_BINARY=/path/to/current/host-status-mcp \
 go test -count=1 -v ./cmd/host-status-mcp -run '^TestSystemdUpdate$'
 ```
 
+### systemd のない Linux での監督・復旧
+
+ホストと同じアーキテクチャで静的ビルドした旧版と現行版を用意する。次のスクリプトは空の Docker イメージに両バイナリと Go のテスト実行ファイルを読み取り専用でマウントする。コンテナは通常ユーザー、外部ネットワークなしで実行し、署名付きの模擬配布元と MCP はループバックを使う。試験後は専用イメージと一時ファイルを削除する。
+
+```sh
+scripts/test-supervise-docker.sh /path/to/old/host-status-mcp /path/to/new/host-status-mcp
+```
+
+`TestSupervisedUpdate` は配布元に問い合わせる前の起動、ダウンロード待機中に異常終了した子の再起動、二重起動と改変署名の拒否を確認する。台帳を破損して終了する署名済み候補では旧版と台帳が復元されることを確認する。次に候補の起動中に監督プロセスを `SIGKILL` し、子も終了すること、別ピアの設定による復旧が拒否されること、元の設定で配布元へのアクセスなしに復旧することを確認する。最後にタイマーによる正規の新版への更新、同じ MCP URL・ノード ID、同版での PID 維持、親子の正常停止を検証する。物理的な電源断やフラッシュ媒体の耐障害性はこの試験の対象外。
+
 ## メッシュ経由の証明書更新
 
 `TestMeshCertificateRenewal` は独立したピアプロセスとテスト用 EST 発行局を使う。更新元と出口の両方から中継へ接続し、CA が受け取った mTLS 識別子・CSR 署名・公開鍵を検査する。許可したノードだけで同じ鍵の新証明書が有効になり、失効扱いのノードには発行しないことを確認する。

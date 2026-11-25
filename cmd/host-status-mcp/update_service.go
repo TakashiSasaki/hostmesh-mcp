@@ -21,14 +21,15 @@ import (
 
 // These values are captured before shutdown and persisted with the rollback binary.
 type updateTarget struct {
-	OwnerUID int
-	Unit     string
-	User     bool
-	StateDir string
-	NodeID   string
-	Previous string
-	Endpoint string
-	Observer string
+	OwnerUID   int
+	PeerConfig string `json:",omitempty"`
+	Unit       string
+	User       bool
+	StateDir   string
+	NodeID     string
+	Previous   string
+	Endpoint   string
+	Observer   string
 }
 
 func commandOutput(ctx context.Context, dir, name string, args ...string) (string, error) {
@@ -50,6 +51,27 @@ func (t updateTarget) systemctl(ctx context.Context, args ...string) (string, er
 	return commandOutput(ctx, "", "systemctl", append(args, "--", t.Unit)...)
 }
 
+// Both service managers use the same update transaction and health checks.
+type peerController interface {
+	processDir(context.Context, string) (string, error)
+	stop(context.Context) error
+	start(context.Context, bool) error
+}
+
+func (t updateTarget) stop(ctx context.Context) error {
+	_, err := t.systemctl(ctx, "stop")
+	return err
+}
+
+func (t updateTarget) start(ctx context.Context, recovering bool) error {
+	if recovering {
+		// A stopped unit may already have been garbage-collected.
+		_, _ = t.systemctl(ctx, "reset-failed")
+	}
+	_, err := t.systemctl(ctx, "start")
+	return err
+}
+
 func (t updateTarget) processDir(ctx context.Context, binary string) (string, error) {
 	pid, err := t.systemctl(ctx, "show", "--property=MainPID", "--value")
 	if err != nil {
@@ -58,6 +80,10 @@ func (t updateTarget) processDir(ctx context.Context, binary string) (string, er
 	if pid == "" || pid == "0" || strings.Trim(pid, "0123456789") != "" {
 		return "", fmt.Errorf("no MainPID for %s", t.Unit)
 	}
+	return checkedProcessDir(pid, binary)
+}
+
+func checkedProcessDir(pid, binary string) (string, error) {
 	proc := filepath.Join("/proc", pid)
 	running, err := os.Stat(filepath.Join(proc, "exe"))
 	if err != nil {
@@ -68,14 +94,14 @@ func (t updateTarget) processDir(ctx context.Context, binary string) (string, er
 		return "", err
 	}
 	if !os.SameFile(expected, running) {
-		return "", fmt.Errorf("%s MainPID %s does not run %s", t.Unit, pid, binary)
+		return "", fmt.Errorf("process %s does not run %s", pid, binary)
 	}
 	return proc, nil
 }
 
-func inspectTarget(ctx context.Context, c updateSettings, previous, candidate string) (updateTarget, error) {
-	t := updateTarget{OwnerUID: os.Geteuid(), Unit: c.Unit, User: c.UserService, Previous: previous, Observer: c.Observer}
-	proc, err := t.processDir(ctx, c.Binary)
+func inspectTarget(ctx context.Context, c updateSettings, manager peerController, previous, candidate string) (updateTarget, error) {
+	t := updateTarget{OwnerUID: os.Geteuid(), Unit: c.Unit, User: c.UserService, Previous: previous, Observer: c.Observer, PeerConfig: c.PeerConfig}
+	proc, err := manager.processDir(ctx, c.Binary)
 	if err != nil {
 		return t, err
 	}
@@ -261,14 +287,17 @@ func (t updateTarget) probe(ctx context.Context, version string) error {
 	return nil
 }
 
-func (t updateTarget) startAndVerify(ctx context.Context, binary, version string) error {
-	if _, err := t.systemctl(ctx, "start"); err != nil {
+func (t updateTarget) startAndVerify(ctx context.Context, manager peerController, binary, version string, recovering bool) error {
+	if err := manager.start(ctx, recovering); err != nil {
 		return err
 	}
 	ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
 	defer cancel()
 	for {
-		_, err := t.processDir(ctx, binary)
+		_, err := manager.processDir(ctx, binary)
+		if errors.Is(err, os.ErrProcessDone) {
+			return err
+		}
 		if err == nil {
 			err = t.probe(ctx, version)
 		}

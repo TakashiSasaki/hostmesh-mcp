@@ -1,8 +1,41 @@
 # ピアの自動更新
 
-Linux の systemd サービスとして動く単体バイナリを対象とする。更新コマンドは MCP ツールと独立したローカル CLI。平文・mTLS のどちらでも同じ MCP URL、ピアポート、設定、証明書、状態ディレクトリ、ノード ID を引き継ぐ。再起動中のクライアントは同じ URL で再接続する。
+Linux 上の単体バイナリを対象とする。ピアの起動と更新は、同じバイナリに含まれる `supervise`、または既存の systemd サービスで管理できる。更新コマンドは MCP ツールと独立したローカル CLI。平文・mTLS のどちらでも同じ MCP URL、ピアポート、設定、証明書、状態ディレクトリ、ノード ID を引き継ぐ。再起動中のクライアントは同じ URL で再接続する。
 
-## 初回の準備
+## systemd を使わない機器での起動
+
+初回は、信頼済みの 0.0.21 以降の配布バイナリを監督用とピア用にコピーする。例えば `/opt/host-status` を用意し、次の 2 ファイルを配置する。
+
+```sh
+cp ./host-status-mcp /opt/host-status/host-status-mcp-supervisor
+cp ./host-status-mcp /opt/host-status/host-status-mcp
+chmod 755 /opt/host-status/host-status-mcp-supervisor /opt/host-status/host-status-mcp
+```
+
+機器の init から次のコマンドをフォアグラウンドで起動する。監督プロセス自身が終了した場合と機器の再起動時の起動は init が担当する。
+
+```sh
+/opt/host-status/host-status-mcp-supervisor supervise -config /etc/host-status/updater.json
+```
+
+`updater.json` の例。配布元の URL と署名検証用の公開鍵は実際のものに置き換える。
+
+```json
+{
+  "binary": "/opt/host-status/host-status-mcp",
+  "peer_config": "/etc/host-status/peer.json",
+  "manifest_url": "https://updates.example.org/host-status-mcp/release.json",
+  "public_key_file": "/etc/host-status/release.pub",
+  "check_interval": "24h"
+}
+```
+
+- `peer_config` は通常の `serve -config` に渡すピア設定の絶対パス。ピアはその設定ファイルの親ディレクトリを作業ディレクトリとして起動する。既存ピアの移行では、相対指定の台帳や証明書が元と同じ場所を指すことを確認する。MCP とピアの待受には固定ポートを使う。送信専用ピアでは更新設定に `observer_mcp_url` を指定する。
+- `supervise` は配布元への接続を待たずに手元のピアを起動する。最初の更新確認は `check_interval` 経過後。省略時は 24 時間で、すぐに確認・適用するには監督プロセスの PID に `kill -USR1 <PID>` を送る。ピアが異常終了すると再起動し、起動直後の終了が続く場合は待ち時間を 1 秒から最大 30 秒に延ばす。監督プロセスへの `SIGTERM` または `SIGINT` で子も停止する。
+- 新版に切り替える際は旧版のバイナリと台帳を保存し、起動後に MCP で版とノード ID を照合する。新版が起動できない場合は旧版に戻る。未確定の更新があれば、次の `supervise` 起動時にリリースの照会に先立って旧版を復旧する。更新対象は `binary` に指定した子だけ。監督用の実行ファイルを更新するときは管理者が別途入れ替えて再起動する。
+- 同一アカウントで親子を実行し、Linux の `/proc` をマウントする。バイナリ配置先にはハードリンク、アトミックな rename、ファイルロックとディレクトリの同期が可能な永続ストレージを使い、候補版と台帳のコピーを保存できる空き容量を確保する。`binary` の隣の `.update-lock`、`.update-pending`、`.update-pending.stage`、`.update-pending.finished` は更新処理専用。複数ピアにはそれぞれ専用のバイナリパス、設定、台帳、ポートを割り当てる。
+
+## systemd サービスの初回準備
 
 以下はユーザーサービス `host-status-mcp.service` の例。対象サービスの `ExecStart` には更新対象のバイナリの絶対パスと `serve -config <ピア設定>` を指定する。MCP とピアの待受先には固定ポートを使う。ホスト上で複数のサービスを個別に更新する場合は、各サービスに専用のバイナリパスを割り当てる。
 
@@ -28,7 +61,7 @@ install -Dm755 ./host-status-mcp ~/.local/libexec/host-status-mcp-updater
 
 `user_service: true` でユーザーの systemd マネージャーを使用する。システムユニットを管理する場合は `false` とし、サービスアカウントに対象ユニットを操作できる権限を設定する。既存のパッケージやコンテナイメージは、それぞれの配布経路で更新する。
 
-## 確認と適用
+## systemd サービスの確認と適用
 
 ```sh
 ~/.local/libexec/host-status-mcp-updater update check -config ~/.config/host-status-mcp/updater.json
@@ -46,7 +79,7 @@ install -Dm755 ./host-status-mcp ~/.local/libexec/host-status-mcp-updater
 
 起動や応答確認が失敗した場合は、旧バイナリと停止時の台帳を復元して起動・照会を確認する。同じバイナリへの並行適用はファイルロックで防ぐ。更新プロセスの強制終了などで `.update-pending` が残ったときは、同じ設定で `update apply` を実行する。この実行は配布サーバーへの接続に先立って旧版を復旧し、終了する。更新中はユニットや設定ファイルの編集を避ける。
 
-## 自動実行
+## systemd タイマーでの自動実行
 
 手動の `update check` と `update apply` で配布元とサービスの設定を確認してから、同梱のユーザータイマーを有効化できる。1 日に 1 回、ホストごとに最大 1 時間のずれを設けて同じ適用処理を呼び出す。
 
