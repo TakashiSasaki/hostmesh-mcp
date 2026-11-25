@@ -7,12 +7,15 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/sigstore/sigstore-go/pkg/bundle"
 	"github.com/sigstore/sigstore-go/pkg/root"
 	"github.com/sigstore/sigstore-go/pkg/tuf"
 	"github.com/sigstore/sigstore-go/pkg/verify"
+	"github.com/theupdateframework/go-tuf/v2/metadata/fetcher"
 )
 
 // GitHub's TUF bootstrap, from cli/cli v2.105.0,
@@ -31,8 +34,20 @@ type identity struct {
 	digest    string
 }
 
+// TUF's Fetcher interface has no per-request context. Tie its metadata
+// requests to the update so shutting down the supervisor cancels them too.
+type trustClient struct{ ctx context.Context }
+
+func (c trustClient) Do(req *http.Request) (*http.Response, error) {
+	return http.DefaultClient.Do(req.WithContext(c.ctx))
+}
+
 func githubTrust(ctx context.Context) (*root.TrustedRoot, error) {
-	opts := tuf.DefaultOptions().WithContext(ctx).WithDisableLocalCache()
+	ctx, cancel := context.WithTimeout(ctx, time.Minute)
+	defer cancel()
+	f := fetcher.NewDefaultFetcher()
+	f.SetHTTPClient(trustClient{ctx})
+	opts := tuf.DefaultOptions().WithContext(ctx).WithDisableLocalCache().WithFetcher(f)
 	opts.RepositoryBaseURL = "https://tuf-repo.github.com"
 	opts.Root = githubRoot
 	client, err := tuf.New(opts)

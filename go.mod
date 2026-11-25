@@ -12,6 +12,7 @@ require (
 	github.com/shirou/gopsutil/v4 v4.26.10
 	github.com/sigstore/sigstore-go v1.4.0
 	github.com/smallstep/pkcs7 v0.2.3
+	github.com/theupdateframework/go-tuf/v2 v2.4.2
 	golang.org/x/sys v0.49.0
 	google.golang.org/grpc v1.85.0
 	google.golang.org/protobuf v1.36.12
@@ -68,7 +69,6 @@ require (
 	github.com/sigstore/rekor-tiles/v2 v2.4.0 // indirect
 	github.com/sigstore/sigstore v1.11.1 // indirect
 	github.com/sigstore/timestamp-authority/v2 v2.2.0 // indirect
-	github.com/theupdateframework/go-tuf/v2 v2.4.2 // indirect
 	github.com/tklauser/go-sysconf v0.4.0 // indirect
 	github.com/tklauser/numcpus v0.12.0 // indirect
 	github.com/transparency-dev/formats v0.1.1 // indirect

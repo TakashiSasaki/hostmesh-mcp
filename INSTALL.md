@@ -1,6 +1,6 @@
 # インストール
 
-コマンド名は Linux・macOS では `hostmesh-mcp`、Windows では `hostmesh-mcp.exe` です。Windows x64 は CI でテスト済みの実行ファイルを取得できます。GitHub Releases への正式配布は準備中です。[リリース一覧](https://github.com/TakashiSasaki/hostmesh-mcp/releases)
+コマンド名は Linux・macOS では `hostmesh-mcp`、Windows では `hostmesh-mcp.exe` です。Windows x64 は CI でテスト済みの実行ファイルを取得できます。正式版を公開すると、GitHub Releases にも Linux 用バイナリと Windows 用 ZIP が掲載されます。[リリース一覧](https://github.com/TakashiSasaki/hostmesh-mcp/releases)
 
 | 使う環境 | 導入方法 |
 | --- | --- |

@@ -79,7 +79,7 @@ A と B が C を共通中継にする場合は、C で `peer.relay: true` と `
 
 ## 同じ接続先でピアを更新する
 
-単体バイナリ版は Linux で `hostmesh-mcp update check -config updater.json` により署名付き公開版を確認し、`update apply` で適用できる。systemd を使わない機器では、監督用コピーを `hostmesh-mcp-supervisor supervise -config updater.json` で起動すると、ピアの再起動と署名付き更新を自動化できる。systemd での定期適用には同梱のユーザータイマーを使える。[更新設定・署名・復旧手順](UPDATING.md)
+Linux 版 0.0.30 以降は、更新設定の `"source": "github"` で公式 GitHub Releases の Latest を追跡する。各ピアは GitHub のリリース証明とバイナリの SHA-256 を検証する。Linux で `hostmesh-mcp update check -config updater.json` により署名付き公開版を確認し、`update apply` で適用できる。systemd を使わない機器では、監督用コピーを `hostmesh-mcp-supervisor supervise -config updater.json` で起動すると、ピアの再起動と署名付き更新を自動化できる。systemd での定期適用には同梱のユーザータイマーを使える。[更新設定・署名・復旧手順](UPDATING.md)
 
 常駐ピアには固定の MCP ポートとピアポートを設定する。更新時には短い切断を許容し、MCP クライアントは登録済みの URL に再接続する。
 

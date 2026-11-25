@@ -340,3 +340,29 @@ func TestSupervisorSettings(t *testing.T) {
 		}
 	}
 }
+
+func TestGitHubUpdateSettings(t *testing.T) {
+	for _, tc := range []struct {
+		source, manifest, key string
+		ok                    bool
+	}{
+		{"github", "", "", true},
+		{"github", "https://example.org/release.json", "", false},
+		{"github", "", "/release.pub", false},
+		{"github-mirror", "", "", false},
+		{"manifest", "https://example.org/release.json", "/release.pub", true},
+	} {
+		cfg := updateSettings{Source: tc.source, ManifestURL: tc.manifest, PublicKeyFile: tc.key, Binary: "/opt/peer", Unit: "peer.service"}
+		raw, err := json.Marshal(cfg)
+		if err != nil {
+			t.Fatal(err)
+		}
+		p := filepath.Join(t.TempDir(), "settings.json")
+		if err := os.WriteFile(p, raw, 0600); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := readUpdateSettings(p); (err == nil) != tc.ok {
+			t.Fatalf("%s: %v", raw, err)
+		}
+	}
+}

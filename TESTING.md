@@ -103,6 +103,12 @@ HOST_STATUS_TEST_BINARY=/path/to/current/hostmesh-mcp \
 go test -count=1 -v ./cmd/hostmesh-mcp -run '^TestSystemdUpdate$'
 ```
 
+### GitHub Releases の証明
+
+`go test ./internal/ghrelease` は GitHub CLI の公開リリースに対する実際の署名を使い、リポジトリ名・ID、タグ、リリース ID、ファイル名・ハッシュの不一致、署名対象の改変を検査する。公式リポジトリの更新先選択は Linux の対応アーキテクチャに限定し、公開状態と immutable フラグも検査する。
+
+`HOSTMESH_LIVE_RELEASE_TEST=1 go test -count=1 -run TestPublicImmutableRelease ./internal/ghrelease` は GitHub CLI v2.105.0 のチェックサムファイルと署名済み証明をインターネットから取得する。GitHub の TUF メタデータの更新、署名者・署名時刻、ファイルの SHA-256 を検証する。
+
 ### systemd のない Linux での監督・復旧
 
 ホストと同じアーキテクチャで静的ビルドした旧版と現行版を用意する。次のスクリプトは空の Docker イメージに両バイナリと Go のテスト実行ファイルを読み取り専用でマウントする。コンテナは通常ユーザー、外部ネットワークなしで実行し、署名付きの模擬配布元と MCP はループバックを使う。試験後は専用イメージと一時ファイルを削除する。

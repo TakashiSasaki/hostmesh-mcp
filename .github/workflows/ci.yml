@@ -17,7 +17,7 @@ jobs:
           go-version-file: go.mod
       - name: Build peer
         if: runner.os != 'Windows'
-        run: CGO_ENABLED=0 go build -o "$RUNNER_TEMP/hostmesh-mcp" ./cmd/hostmesh-mcp
+        run: CGO_ENABLED=0 go build -trimpath -o "$RUNNER_TEMP/hostmesh-mcp" ./cmd/hostmesh-mcp
       - name: Test with the native executable
         if: runner.os != 'Windows'
         run: HOST_STATUS_TEST_BINARY="$RUNNER_TEMP/hostmesh-mcp" go test -count=1 ./...
@@ -70,7 +70,8 @@ jobs:
             install -m755 "artifacts/hostmesh-mcp-linux-$arch/hostmesh-mcp" "dist/hostmesh-mcp-$version-linux-$arch"
           done
           test "$(dist/hostmesh-mcp-"$version"-linux-amd64 version)" = "$version"
-          (cd artifacts/hostmesh-mcp-windows-amd64 && zip -q "../../dist/hostmesh-mcp-$version-windows-amd64.zip" hostmesh-mcp.exe)
+          touch -d "@$(git log -1 --format=%ct)" artifacts/hostmesh-mcp-windows-amd64/hostmesh-mcp.exe
+          (cd artifacts/hostmesh-mcp-windows-amd64 && TZ=UTC zip -Xq "../../dist/hostmesh-mcp-$version-windows-amd64.zip" hostmesh-mcp.exe)
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: release-assets

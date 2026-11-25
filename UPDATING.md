@@ -4,7 +4,7 @@ Linux 上の単体バイナリを対象とする。ピアの起動と更新は�
 
 ## systemd を使わない機器での起動
 
-初回は、信頼済みの 0.0.21 以降の配布バイナリを監督用とピア用にコピーする。例えば `/opt/host-status` を用意し、次の 2 ファイルを配置する。
+初回は、GitHub 更新に対応した 0.0.30 以降の信頼済みバイナリを監督用とピア用にコピーする。例えば `/opt/host-status` を用意し、次の 2 ファイルを配置する。
 
 ```sh
 cp ./hostmesh-mcp /opt/host-status/hostmesh-mcp-supervisor
@@ -18,14 +18,13 @@ chmod 755 /opt/host-status/hostmesh-mcp-supervisor /opt/host-status/hostmesh-mcp
 /opt/host-status/hostmesh-mcp-supervisor supervise -config /etc/host-status/updater.json
 ```
 
-`updater.json` の例。配布元の URL と署名検証用の公開鍵は実際のものに置き換える。
+`updater.json` の例。`source` に `github` を指定し、パスは機器の配置に合わせる。
 
 ```json
 {
   "binary": "/opt/host-status/hostmesh-mcp",
   "peer_config": "/etc/host-status/peer.json",
-  "manifest_url": "https://updates.example.org/hostmesh-mcp/release.json",
-  "public_key_file": "/etc/host-status/release.pub",
+  "source": "github",
   "check_interval": "24h"
 }
 ```
@@ -39,20 +38,19 @@ chmod 755 /opt/host-status/hostmesh-mcp-supervisor /opt/host-status/hostmesh-mcp
 
 以下はユーザーサービス `host-status-mcp.service` の例。対象サービスの `ExecStart` には更新対象のバイナリの絶対パスと `serve -config <ピア設定>` を指定する。MCP とピアの待受先には固定ポートを使う。ホスト上で複数のサービスを個別に更新する場合は、各サービスに専用のバイナリパスを割り当てる。
 
-0.0.18 以降の信頼済みバイナリのコピーを更新用にも配置する。これで更新中に候補版が起動できなくなっても、同じ配布バイナリから用意した更新コマンドを実行できる。
+0.0.30 以降の信頼済みバイナリのコピーを更新用にも配置する。これで更新中に候補版が起動できなくなっても、同じ配布バイナリから用意した更新コマンドを実行できる。
 
 ```sh
 install -Dm755 ./hostmesh-mcp ~/.local/libexec/hostmesh-mcp-updater
 ```
 
-ピアのサービスアカウントで更新コマンドを実行する。Linux の `/proc` で実プロセスの設定、作業ディレクトリ、台帳を特定するため、対象プロセスの参照、バイナリ配置ディレクトリと台帳への書き込み、対象ユニットの操作が必要になる。偽の配布元への差し替えを防ぐため、更新設定、公開鍵、バイナリの配置ディレクトリは管理するアカウントだけが変更できる場所に置く。
+ピアのサービスアカウントで更新コマンドを実行する。Linux の `/proc` で実プロセスの設定、作業ディレクトリ、台帳を特定するため、対象プロセスの参照、バイナリ配置ディレクトリと台帳への書き込み、対象ユニットの操作が必要になる。偽の配布元への差し替えを防ぐため、更新設定とバイナリの配置ディレクトリは管理するアカウントだけが変更できる場所に置く。
 
-`~/.config/host-status-mcp/updater.json` の例。配布管理者が用意する URL と、実際の絶対パスに置き換える。
+`~/.config/host-status-mcp/updater.json` の例。実際の絶対パスとユニット名に置き換える。
 
 ```json
 {
-  "manifest_url": "https://updates.example.org/hostmesh-mcp/release.json",
-  "public_key_file": "/home/alice/.config/host-status-mcp/release.pub",
+  "source": "github",
   "binary": "/home/alice/.local/bin/hostmesh-mcp",
   "systemd_unit": "host-status-mcp.service",
   "user_service": true
@@ -70,7 +68,7 @@ install -Dm755 ./hostmesh-mcp ~/.local/libexec/hostmesh-mcp-updater
 
 `check` はインストール済みと署名を検証した公開版のバージョンを表示する。`apply` は `major.minor.patch` を数値比較し、新しい安定版だけを適用する。同版・旧版の公開情報では再起動しない。正常時の終了コードは 0。更新や復旧の失敗は標準エラーと終了コード 1 で通知する。
 
-1. 専用の Ed25519 公開鍵でマニフェストの署名を検証する。自ホスト向けのバイナリを一時保存し、サイズと SHA-256、候補版自身が返すバージョンを照合する。
+1. GitHub が署名したリリース証明と、タグに紐付くファイル名・SHA-256 を照合する。自ホスト向けのバイナリを一時保存し、サイズと SHA-256、候補版自身が返すバージョンを照合する。
 2. 旧版の稼働中に、候補版の `config check` を実際のサービスと同じ作業ディレクトリ・設定パスで実行する。旧版のノード ID とバージョンを MCP で確認する。
 3. 旧版バイナリを保存してサービスを停止する。台帳の排他ロックを取って `state.json` を保存し、同じファイルシステム内でバイナリをアトミックに置換してユニットを起動する。
 4. systemd の MainPID が新バイナリを実行していること、従来の MCP URL の `server_version` と `server_config` が期待した版・ID を返すことを確認する。起動後の応答は最大 20 秒待つ。
@@ -91,7 +89,23 @@ systemctl --user enable --now host-status-mcp-update.timer
 journalctl --user -u host-status-mcp-update.service
 ```
 
-## 署名付きリリースの作成
+## GitHub Releases で公開する
+
+CI が通った `main` の配布対象コミットで、次を実行する。通常の push はテストと配布物の組み立てまでを行う。
+
+```sh
+tag="v$(cat cmd/hostmesh-mcp/VERSION)"
+git tag -a "$tag" -m "Release $tag"
+git push github "refs/tags/$tag"
+```
+
+タグ名と `VERSION` が一致し、Linux・macOS・Windows のテストが通ると、Actions が Linux の amd64 / arm64 の実行ファイルと Windows x64 の ZIP をドラフトに添付して公開する。GitHub の immutable releases を有効にしておく。Actions は公開された各ファイルを `gh release verify-asset` で検証してから安定版を Latest に指定する。失敗時は Actions のログを確認する。公開後の内容を修正するときは、新しいパッチ番号でリリースする。
+
+ピアはトークンなしで公式リポジトリの Latest を取得し、固定のリポジトリ ID、リリース ID、タグ、資産名、SHA-256 を GitHub の署名済み証明と照合する。署名者と署名時刻の検証には GitHub の TUF 信頼ルートと Sigstore を使う。ピアから GitHub API、リリース配布先、証明の配布先、`tuf-repo.github.com` に HTTPS で到達できることが必要。取得・検証に失敗した場合は稼働中の版を継続する。新方式の初回導入では、ピア本体と更新を実行する監督用または更新用コピーの双方を手動で入れ替える。
+
+## 独自の署名付きマニフェストで配布する場合
+
+既存の配布元を使う場合は、更新設定で `source` を省略するか `manifest` を指定し、`manifest_url` と `public_key_file` を設定する。以下はこの方式専用の手順。
 
 配布管理者は最初にリリース専用の署名鍵を用意し、公開鍵を初回導入時に各ホストに渡す。ピア mTLS 用 CA の運用とは独立している。
 
