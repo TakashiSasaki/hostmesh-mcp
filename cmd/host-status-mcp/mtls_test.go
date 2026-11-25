@@ -24,7 +24,10 @@ import (
 	"github.com/google/uuid"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/credentials/insecure"
+	grpcstatus "google.golang.org/grpc/status"
 )
 
 type testCA struct {
@@ -78,7 +81,7 @@ func (ca testCA) issue(t *testing.T, id string, until time.Time, names ...string
 	if err != nil {
 		t.Fatal(err)
 	}
-	return peerConfig{Security: "mtls", CAFile: ca.path, CertFile: writeTestPEM(t, "CERTIFICATE", der), KeyFile: writeTestPEM(t, "PRIVATE KEY", secret)}
+	return peerConfig{CAFile: ca.path, CertFile: writeTestPEM(t, "CERTIFICATE", der), KeyFile: writeTestPEM(t, "PRIVATE KEY", secret)}
 }
 
 func TestMTLSAdmission(t *testing.T) {
@@ -221,10 +224,37 @@ func TestMTLSRecordTrust(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer secure.Close()
 	if len(secure.Nodes()) != 2 || secure.Self().Revision <= 2 {
 		t.Fatal("signed directory or renewed revision missing")
 	}
+	signed := secure.Nodes()
+	secure.Close()
+	plain, err = state.Open(dir, local)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer plain.Close()
+	if len(plain.Nodes()) != 1 || plain.Self().ID != id || plain.Self().Proof != nil {
+		t.Fatal("plaintext restart retained authenticated records")
+	}
+	if _, _, err := plain.Merge(signed); err == nil || len(plain.Nodes()) != 1 {
+		t.Fatal("plaintext ledger imported signed records")
+	}
+}
+
+func testClientCredentials(t *testing.T, cfg peerConfig) credentials.TransportCredentials {
+	t.Helper()
+	pair, err := tls.LoadX509KeyPair(cfg.CertFile, cfg.KeyFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pemData, err := os.ReadFile(cfg.CAFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	roots := x509.NewCertPool()
+	roots.AppendCertsFromPEM(pemData)
+	return credentials.NewTLS(&tls.Config{RootCAs: roots, Certificates: []tls.Certificate{pair}, MinVersion: tls.VersionTLS13})
 }
 
 func TestMTLSLinkExpiry(t *testing.T) {
@@ -239,17 +269,7 @@ func TestMTLSLinkExpiry(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	pair, err := tls.LoadX509KeyPair(cfg.CertFile, cfg.KeyFile)
-	if err != nil {
-		t.Fatal(err)
-	}
-	pemData, err := os.ReadFile(cfg.CAFile)
-	if err != nil {
-		t.Fatal(err)
-	}
-	roots := x509.NewCertPool()
-	roots.AppendCertsFromPEM(pemData)
-	conn, err := grpc.NewClient("passthrough:///"+server.peer, grpc.WithTransportCredentials(credentials.NewTLS(&tls.Config{RootCAs: roots, Certificates: []tls.Certificate{pair}, MinVersion: tls.VersionTLS13})))
+	conn, err := grpc.NewClient("passthrough:///"+server.peer, grpc.WithTransportCredentials(testClientCredentials(t, cfg)))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -282,16 +302,44 @@ func TestMTLSLinkExpiry(t *testing.T) {
 	}
 }
 
-// Both directions share the one TLS connection initiated by B.
-func TestMTLSDirectQueries(t *testing.T) {
+// Each edge seeds both hubs. The MCP clients on all four nodes must see
+// and reach only the two nodes sharing their transport.
+func TestPeerModeIsolation(t *testing.T) {
 	ca := newTestCA(t)
-	serverCfg := ca.issue(t, uuid.NewString(), time.Now().Add(time.Hour))
-	serverCfg.Listen = "127.0.0.1:0"
-	a := startServeProcess(t, config{Peer: serverCfg, MCPListen: "127.0.0.1:0"})
-	clientCfg := ca.issue(t, uuid.NewString(), time.Now().Add(time.Hour))
-	clientCfg.Seeds = []string{a.peer}
-	b := startServeProcess(t, config{Peer: clientCfg, MCPListen: "127.0.0.1:0"})
-	for _, pair := range [][2]readyProcess{{a, b}, {b, a}} {
+	hub := func(cfg peerConfig) readyProcess {
+		cfg.Listen = "127.0.0.1:0"
+		return startServeProcess(t, config{Peer: cfg, MCPListen: "127.0.0.1:0"})
+	}
+	secureConfig := func() peerConfig { return ca.issue(t, uuid.NewString(), time.Now().Add(time.Hour)) }
+	plainHub, secureHub := hub(peerConfig{}), hub(secureConfig())
+	// Probe both listeners synchronously so a slow background seed attempt
+	// cannot make an incompatible listener look isolated.
+	for _, probe := range []struct {
+		server readyProcess
+		creds  credentials.TransportCredentials
+	}{
+		{secureHub, insecure.NewCredentials()},
+		{plainHub, testClientCredentials(t, secureConfig())},
+	} {
+		conn, err := grpc.NewClient("passthrough:///"+probe.server.peer, grpc.WithTransportCredentials(probe.creds))
+		if err != nil {
+			t.Fatal(err)
+		}
+		ctx, cancel := context.WithTimeout(t.Context(), 3*time.Second)
+		_, err = wire.NewPeeringClient(conn).Link(ctx)
+		cancel()
+		conn.Close()
+		if grpcstatus.Code(err) != codes.Unavailable {
+			t.Fatalf("mixed-mode transport to %s: expected handshake failure, got %v", probe.server.peer, err)
+		}
+	}
+	edge := func(cfg peerConfig, foreign, own readyProcess) readyProcess {
+		cfg.Seeds = []string{foreign.peer, own.peer}
+		return startServeProcess(t, config{Peer: cfg, MCPListen: "127.0.0.1:0"})
+	}
+	plainEdge := edge(peerConfig{}, secureHub, plainHub)
+	secureEdge := edge(secureConfig(), plainHub, secureHub)
+	for _, pair := range [][2]readyProcess{{plainHub, plainEdge}, {plainEdge, plainHub}, {secureHub, secureEdge}, {secureEdge, secureHub}} {
 		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 		client := mcp.NewClient(&mcp.Implementation{Name: "tls-test", Version: "1"}, nil)
 		session, err := client.Connect(ctx, &mcp.StreamableClientTransport{Endpoint: pair[0].mcp}, nil)
@@ -315,6 +363,35 @@ func TestMTLSDirectQueries(t *testing.T) {
 				break
 			}
 			time.Sleep(25 * time.Millisecond)
+		}
+		reply, err := session.CallTool(ctx, &mcp.CallToolParams{Name: "host_list"})
+		if err != nil || reply.IsError {
+			t.Fatalf("host_list: %v, %v", reply, err)
+		}
+		var listed struct {
+			Hosts []status.Host `json:"hosts"`
+		}
+		data, err := json.Marshal(reply.StructuredContent)
+		if err != nil || json.Unmarshal(data, &listed) != nil || len(listed.Hosts) != 2 {
+			t.Fatalf("unexpected directory on %s: %s", pair[0].id, data)
+		}
+		for _, h := range listed.Hosts {
+			if h.ID != pair[0].id && h.ID != pair[1].id {
+				t.Fatalf("foreign node %s in directory of %s", h.ID, pair[0].id)
+			}
+		}
+		foreign := plainHub
+		if pair[0] == plainHub || pair[0] == plainEdge {
+			foreign = secureHub
+		}
+		reply, err = session.CallTool(ctx, &mcp.CallToolParams{Name: "host_status", Arguments: map[string]any{"target": map[string]string{"node_id": foreign.id}, "sections": []string{"system"}}})
+		if err != nil || !reply.IsError || len(reply.Content) != 1 {
+			t.Fatalf("foreign node lookup: %v, %v", reply, err)
+		}
+		content, ok := reply.Content[0].(*mcp.TextContent)
+		var failure status.Failure
+		if !ok || json.Unmarshal([]byte(content.Text), &failure) != nil || failure.Code != "HOST_NOT_FOUND" {
+			t.Fatalf("unexpected foreign node lookup error: %v", reply.Content)
 		}
 		session.Close()
 		cancel()

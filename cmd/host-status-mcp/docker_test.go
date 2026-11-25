@@ -118,7 +118,6 @@ func testDockerRelay(t *testing.T, mtls bool) {
 					t.Fatal(err)
 				}
 			}
-			cfg.Peer.Security = "mtls"
 			cfg.Peer.CAFile, cfg.Peer.CertFile, cfg.Peer.KeyFile = "/state/ca.pem", "/state/node.pem", "/state/node.key"
 		}
 		data, err := json.Marshal(cfg)
@@ -164,12 +163,12 @@ func testDockerRelay(t *testing.T, mtls bool) {
 		t.Log(run("docker", cmd...))
 	}
 
-	start(c, left, config{Peer: peerConfig{Security: "plaintext", Listen: ":7443", Relay: true}})
+	start(c, left, config{Peer: peerConfig{Listen: ":7443", Relay: true}})
 	run("docker", "network", "connect", right, c)
 	initialC := nodeID(c)
 	cfg := func(mcpListen string) config {
 		return config{MCPListen: mcpListen, Peer: peerConfig{
-			Security: "plaintext", Listen: ":7443", Seeds: []string{c + ":7443"}, TrustedRelays: []string{initialC},
+			Listen: ":7443", Seeds: []string{c + ":7443"}, TrustedRelays: []string{initialC},
 		}}
 	}
 	start(a, left, cfg("127.0.0.1:8787"))

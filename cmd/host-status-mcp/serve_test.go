@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"os"
 	"os/exec"
@@ -214,5 +215,57 @@ func testServeRelay(t *testing.T, mk func() peerConfig) {
 			failure.Code != "COLLECTION_FAILED" || failure.SectionErrors["filesystems:"+failureCase.path] == "" {
 			t.Fatalf("missing filesystem diagnostics for %q: %+v", failureCase.nodeID, reply.Content)
 		}
+	}
+}
+
+func TestPeerSecurityConfiguration(t *testing.T) {
+	missing := filepath.Join(t.TempDir(), "missing.pem")
+	for _, tc := range []struct {
+		name string
+		cfg  peerConfig
+		want string
+	}{
+		{"default plaintext", peerConfig{}, "plaintext"},
+		{"default mtls", peerConfig{CAFile: missing, CertFile: missing, KeyFile: missing}, "mtls"},
+		{"explicit plaintext", peerConfig{Security: "plaintext"}, "plaintext"},
+		{"explicit mtls", peerConfig{Security: "mtls", CAFile: missing, CertFile: missing, KeyFile: missing}, "mtls"},
+		{"explicit plaintext with credentials", peerConfig{Security: "plaintext", CAFile: missing, CertFile: missing, KeyFile: missing}, ""},
+		{"explicit mtls without credentials", peerConfig{Security: "mtls"}, ""},
+		{"unknown mode", peerConfig{Security: "auto"}, ""},
+		{"CA only", peerConfig{CAFile: missing}, ""},
+		{"cert only", peerConfig{CertFile: missing}, ""},
+		{"key only", peerConfig{KeyFile: missing}, ""},
+		{"missing CA", peerConfig{CertFile: missing, KeyFile: missing}, ""},
+		{"missing cert", peerConfig{CAFile: missing, KeyFile: missing}, ""},
+		{"missing key", peerConfig{CAFile: missing, CertFile: missing}, ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			tc.cfg.Listen = "127.0.0.1:0"
+			path := filepath.Join(t.TempDir(), "config.json")
+			data, err := json.Marshal(config{Peer: tc.cfg, StateDir: t.TempDir()})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(path, data, 0600); err != nil {
+				t.Fatal(err)
+			}
+			c, err := readConfig(path)
+			if tc.want == "" {
+				if err == nil {
+					t.Fatal("accepted invalid configuration")
+				}
+				return
+			}
+			if err != nil || c.Peer.Security != tc.want {
+				t.Fatalf("mode = %q, err = %v", c.Peer.Security, err)
+			}
+			if tc.want == "mtls" {
+				ctx, cancel := context.WithCancel(t.Context())
+				cancel()
+				if err := serve(ctx, "test", c); !errors.Is(err, os.ErrNotExist) {
+					t.Fatalf("expected missing certificate file error, got %v", err)
+				}
+			}
+		})
 	}
 }

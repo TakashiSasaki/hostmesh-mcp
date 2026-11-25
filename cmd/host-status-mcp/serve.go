@@ -33,7 +33,7 @@ type peerConfig struct {
 	CAFile         string   `json:"ca_file,omitempty"`
 	CertFile       string   `json:"cert_file,omitempty"`
 	KeyFile        string   `json:"key_file,omitempty"`
-	Security       string   `json:"security"`
+	Security       string   `json:"security,omitempty"`
 	Listen         string   `json:"listen"`
 	Advertise      []string `json:"advertise"`
 	Seeds          []string `json:"seeds"`
@@ -68,22 +68,17 @@ func readConfig(path string) (config, error) {
 	if c.MCPListen == "" && c.Peer.Listen == "" && len(c.Peer.Seeds) == 0 {
 		return c, fmt.Errorf("configure at least one MCP or peer endpoint")
 	}
-	if c.Peer.Security != "mtls" && (c.Peer.CAFile != "" || c.Peer.CertFile != "" || c.Peer.KeyFile != "") {
-		return c, fmt.Errorf("peer certificate settings require peer.security mtls")
-	}
-	switch c.Peer.Security {
-	case "":
-		if c.Peer.Listen != "" || len(c.Peer.Seeds) != 0 || len(c.Peer.Advertise) != 0 || c.Peer.Relay || len(c.Peer.TrustedRelays) != 0 {
-			return c, fmt.Errorf("configure peer.security as plaintext or mtls to enable peering")
-		}
-	case "plaintext":
-	case "mtls":
+	mode := "plaintext"
+	if c.Peer.CAFile != "" || c.Peer.CertFile != "" || c.Peer.KeyFile != "" {
 		if c.Peer.CAFile == "" || c.Peer.CertFile == "" || c.Peer.KeyFile == "" {
-			return c, fmt.Errorf("mtls requires peer.ca_file, cert_file and key_file")
+			return c, fmt.Errorf("mTLS requires peer.ca_file, peer.cert_file and peer.key_file together")
 		}
-	default:
-		return c, fmt.Errorf("unsupported peer.security %q", c.Peer.Security)
+		mode = "mtls"
 	}
+	if c.Peer.Security != "" && c.Peer.Security != mode {
+		return c, fmt.Errorf("peer.security %q conflicts with mode %q selected by certificate settings", c.Peer.Security, mode)
+	}
+	c.Peer.Security = mode
 	if c.Peer.Listen == "" && len(c.Peer.Advertise) != 0 {
 		return c, fmt.Errorf("peer.advertise requires peer.listen")
 	}

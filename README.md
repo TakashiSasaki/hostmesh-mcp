@@ -22,7 +22,6 @@ A の設定 `a.json` の例。
   "state_dir": "/tmp/host-status-demo-a",
   "filesystems": ["/"],
   "peer": {
-    "security": "plaintext",
     "listen": "127.0.0.1:7443",
     "advertise": ["127.0.0.1:7443"]
   }
@@ -36,7 +35,6 @@ B の設定 `b.json` の例。
   "mcp_listen": "",
   "state_dir": "/tmp/host-status-demo-b",
   "peer": {
-    "security": "plaintext",
     "seeds": ["127.0.0.1:7443"]
   }
 }
@@ -50,14 +48,15 @@ A と B が C を共通中継にする場合は、C で `peer.relay: true` と `
 
 ## ピア間の mTLS
 
-接続する全ノードで `peer.security` を `mtls` に設定する。ピアは TLS 1.3 で相互認証し、初回接続でも証明書に記載したノード ID と台帳の発行元署名を検証する。MCP クライアントは従来どおり stdio またはループバック HTTP で接続する。閉域網で証明書を使わない運用には `plaintext` を選べる。
+ピアの通信方式は `serve` の起動時に決まる。`peer.ca_file`、`peer.cert_file`、`peer.key_file` をすべて省略すると平文、3 点をすべて指定すると mTLS で起動する。一部だけ指定した場合や、証明書・鍵の読み込みや検証に失敗した場合は起動エラーになる。既存の `peer.security` 設定は省略できる。指定する場合は証明書の構成と一致する値（`plaintext` または `mtls`）を使う。
+
+待ち受けと発信には同じ方式を使う。異なる方式のシードを指定してもハンドシェイクで終了し、その相手とは台帳の交換も状態照会の中継も行わない。mTLS では TLS 1.3 で相互認証し、ノード ID と台帳レコードの署名を検証する。MCP クライアントは stdio またはループバック HTTP で接続する。
 
 次は A のピア設定例。B には B 固有の証明書と鍵を配置し、`seeds` に `["a.example.internal:7443"]` を指定する。既存ノードは `state_dir` を引き継ぎ、`host_list` の `is_local: true` に表示された UUID を証明書に使う。新規ノードは UUID v4 を一つ発行し、その値を証明書と初回の永続 ID に使う。
 
 ```json
 {
   "peer": {
-    "security": "mtls",
     "listen": ":7443",
     "advertise": ["a.example.internal:7443"],
     "ca_file": "/etc/host-status-mcp/ca.pem",
@@ -93,7 +92,7 @@ openssl x509 -req -in node.csr -CA ca.pem -CAkey ca.key -CAcreateserial \
 
 ノードに CA の公開証明書と発行済みのノード証明書を渡す。中間 CA がある場合、`cert_file` の PEM はノード証明書を先頭に中間証明書を続ける。CA の秘密鍵は署名環境で保管する。
 
-設定と証明書は `serve` の起動時に読み込む。更新時は同じ UUID の証明書を配置し、期限前にノードを再起動する。有効期限に達したリンクは切断される。特定ノードの参加を取り消す場合は各ノードの `peer.deny_nodes` に ID を追加して再起動する。平文と mTLS を切り替えるときは、方式をそろえたシードから他ノードの台帳を再取得する。
+設定と証明書は `serve` の起動時に読み込む。更新時は同じ UUID の証明書を配置し、期限前にノードを再起動する。有効期限に達したリンクは切断される。特定ノードの参加を取り消す場合は各ノードの `peer.deny_nodes` に ID を追加して再起動する。同じ `state_dir` で平文と mTLS を切り替えると、自ノードの ID は引き継ぎ、それまでの他ノードの台帳を破棄する。新しい方式のシードからピアを再発見する。
 
 ## 状態照会
 

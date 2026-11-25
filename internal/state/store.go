@@ -265,8 +265,8 @@ func (s *Store) Merge(in []status.Node) (bool, []string, error) {
 			proof := *node.Proof
 			proof.ValidUntil = until
 			node.Proof = &proof
-		} else {
-			node.Proof = nil
+		} else if node.Proof != nil {
+			return false, nil, fmt.Errorf("plaintext ledger rejects a record with a certificate or signature")
 		}
 		old := nodes[node.ID]
 		if old.Revision == node.Revision && old.Revision != 0 && !reflect.DeepEqual(old, node) {
