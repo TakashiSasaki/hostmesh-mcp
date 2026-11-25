@@ -73,6 +73,8 @@ A と B が C を共通中継にする場合は、C で `peer.relay: true` と `
 
 ## 同じ接続先でピアを更新する
 
+単体バイナリ版は Linux で `host-status-mcp update check -config updater.json` により署名付き公開版を確認し、`update apply` で適用できる。定期適用には同梱の systemd ユーザータイマーを使える。[更新設定・署名・復旧手順](UPDATING.md)
+
 常駐ピアには固定の MCP ポートとピアポートを設定する。更新時には短い切断を許容し、MCP クライアントは登録済みの URL に再接続する。
 
 1. 旧版の稼働中に新版バイナリを別ファイルに配置し、新版の `config check -config peer.json` で運用中の設定を検査する。

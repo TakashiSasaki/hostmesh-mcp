@@ -90,3 +90,14 @@ HOST_STATUS_PREVIOUS_BINARY=/path/to/old/host-status-mcp \
 HOST_STATUS_TEST_BINARY=/path/to/new/host-status-mcp \
 go test -count=1 -v ./cmd/host-status-mcp -run '^TestSameHostUpgrade$'
 ```
+
+## 自動更新の試験
+
+`TestSignedRelease` は一時 Ed25519 鍵とループバック配布サーバーを使い、署名、ダウンロード内容、版の比較を検査する。`TestSystemdUpdate` は一時ユーザーユニットと mTLS ピアを作り、終了時にユニットを削除する。旧版と新版を用意し、同じ URL とノード ID での更新、第三のピアからの照会、改変バイナリの拒否、起動失敗時の旧版復旧、更新中断からの回復、同時実行拒否を確認する。
+
+```sh
+HOST_STATUS_UPDATE_SYSTEMD_TEST=1 \
+HOST_STATUS_PREVIOUS_BINARY=/path/to/older/host-status-mcp \
+HOST_STATUS_TEST_BINARY=/path/to/current/host-status-mcp \
+go test -count=1 -v ./cmd/host-status-mcp -run '^TestSystemdUpdate$'
+```
