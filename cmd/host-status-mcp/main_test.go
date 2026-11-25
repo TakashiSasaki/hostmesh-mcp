@@ -12,7 +12,6 @@ import (
 
 	"github.com/TakashiSasaki/host-status-mcp/internal/status"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
-	"golang.org/x/sys/unix"
 )
 
 func TestEntrypoint(t *testing.T) {
@@ -43,7 +42,7 @@ func TestStdio(t *testing.T) {
 		}
 		tools, err := session.ListTools(ctx, nil)
 		wantTools := 6
-		if runtime.GOOS == "darwin" {
+		if runtime.GOOS != "linux" {
 			wantTools = 5
 		}
 		if err != nil || len(tools.Tools) != wantTools {
@@ -118,7 +117,7 @@ func TestStdio(t *testing.T) {
 
 func hasRootMount(storage *status.Storage) bool {
 	return storage != nil && storage.Mounts != nil && slices.ContainsFunc(*storage.Mounts, func(m status.Mount) bool {
-		return m.MountPoint == "/" && m.FilesystemType != ""
+		return strings.EqualFold(m.MountPoint, defaultFilesystemRoot()) && m.FilesystemType != ""
 	})
 }
 
@@ -133,17 +132,5 @@ func checkClock(t *testing.T, r status.Result) {
 	if !clock.UTCTime.Equal(r.ObservedAt) || !clock.LocalTime.Equal(clock.UTCTime) ||
 		utcOffset != 0 || localOffset != clock.UTCOffsetSeconds || clock.TimezoneAbbreviation == "" {
 		t.Fatalf("inconsistent clock reading: %+v, observed_at %s", clock, r.ObservedAt)
-	}
-}
-
-func checkKernelRelease(t *testing.T, system *status.System) {
-	t.Helper()
-	var uts unix.Utsname
-	if err := unix.Uname(&uts); err != nil {
-		t.Fatal(err)
-	}
-	want := unix.ByteSliceToString(uts.Release[:])
-	if system == nil || system.KernelRelease != want {
-		t.Fatalf("system = %+v, want kernel_release %q", system, want)
 	}
 }

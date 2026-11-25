@@ -1,3 +1,5 @@
+//go:build darwin || windows
+
 package mcpserver
 
 import "github.com/modelcontextprotocol/go-sdk/mcp"

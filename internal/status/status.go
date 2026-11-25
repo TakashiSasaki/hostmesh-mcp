@@ -110,11 +110,18 @@ type Storage struct {
 	BlockDevices *[]BlockDevice `json:"block_devices,omitempty"`
 }
 
-type Swap struct {
-	Enabled    bool   `json:"enabled"`
+type PageFile struct {
+	Name       string `json:"name"`
 	TotalBytes uint64 `json:"total_bytes"`
 	UsedBytes  uint64 `json:"used_bytes"`
-	FreeBytes  uint64 `json:"free_bytes"`
+}
+
+type Swap struct {
+	PageFiles  []PageFile `json:"page_files,omitempty"`
+	Enabled    bool       `json:"enabled"`
+	TotalBytes uint64     `json:"total_bytes"`
+	UsedBytes  uint64     `json:"used_bytes"`
+	FreeBytes  uint64     `json:"free_bytes"`
 }
 
 type Interface struct {

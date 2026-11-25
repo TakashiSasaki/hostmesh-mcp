@@ -59,7 +59,7 @@ func (s *seedList) UnmarshalJSON(data []byte) error {
 }
 
 func readConfig(path string) (config, error) {
-	var c = config{MCPListen: "127.0.0.1:8787", Filesystems: []string{"/"}}
+	var c = config{MCPListen: "127.0.0.1:8787", Filesystems: []string{defaultFilesystemRoot()}}
 	f, err := os.Open(path)
 	if err != nil {
 		return c, err

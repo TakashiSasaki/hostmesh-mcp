@@ -1,6 +1,6 @@
 # host-status-mcp テスト設計
 
-当面は Linux 上で、ホストの Go を使った単体・結合テストと、Docker を使った複数ノード試験を行う。Linux の配布対象は ARM64 と x86_64。Windows 対応は後続とし、macOS は GitHub Actions の Apple Silicon と Intel のランナーで実行試験を行う。
+当面は Linux 上で、ホストの Go を使った単体・結合テストと、Docker を使った複数ノード試験を行う。Linux の配布対象は ARM64 と x86_64。Windows x64 は GitHub の Windows Server 2025 ランナーで一般ユーザーを作成し、stdio と mTLS ピア経由のホスト監視を検証する。macOS は GitHub Actions の Apple Silicon と Intel のランナーで実行試験を行う。
 
 ## PoC の単体テスト
 

@@ -7,7 +7,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-24.04, ubuntu-24.04-arm, macos-15, macos-15-intel]
+        os: [ubuntu-24.04, ubuntu-24.04-arm, macos-15, macos-15-intel, windows-2025]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     steps:
@@ -16,6 +16,28 @@ jobs:
         with:
           go-version-file: go.mod
       - name: Build peer
+        if: runner.os != 'Windows'
         run: CGO_ENABLED=0 go build -o "$RUNNER_TEMP/host-status-mcp" ./cmd/host-status-mcp
       - name: Test with the native executable
+        if: runner.os != 'Windows'
         run: HOST_STATUS_TEST_BINARY="$RUNNER_TEMP/host-status-mcp" go test -count=1 ./...
+      - name: Build and test Windows x64 peer
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $env:CGO_ENABLED = '0'
+          $env:HOST_STATUS_TEST_BINARY = "$env:RUNNER_TEMP/host-status-mcp.exe"
+          go build -trimpath -o $env:HOST_STATUS_TEST_BINARY ./cmd/host-status-mcp
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          go test -count=1 ./...
+      - name: Test Windows monitoring as a standard user
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./scripts/test-windows-user.ps1
+      - name: Upload tested Windows executable
+        if: runner.os == 'Windows' && github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: host-status-mcp-windows-amd64
+          path: ${{ runner.temp }}/host-status-mcp.exe
+          if-no-files-found: error

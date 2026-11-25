@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"os/exec"
+	"runtime"
 	"strings"
 	"syscall"
 	"testing"
@@ -18,6 +19,9 @@ import (
 // All three processes share the host's hostname and IP. The observer stays
 // running through the cutover and selects each rollout slot by node ID.
 func TestSameHostUpgrade(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("POSIX SIGTERM cutover")
+	}
 	current := strings.TrimSpace(versionFile)
 	oldBinary := os.Getenv("HOST_STATUS_PREVIOUS_BINARY")
 	previous := current

@@ -1,3 +1,5 @@
+//go:build !windows
+
 package main
 
 import (
@@ -215,21 +217,6 @@ func inspectTarget(ctx context.Context, c updateSettings, manager peerController
 	}
 	t.NodeID = identity.ID
 	return t, t.probe(ctx, previous)
-}
-
-func toolResult(ctx context.Context, s *mcp.ClientSession, name string, args any, dst any) error {
-	r, err := s.CallTool(ctx, &mcp.CallToolParams{Name: name, Arguments: args})
-	if err != nil {
-		return err
-	}
-	if r.IsError {
-		return fmt.Errorf("%s returned an error", name)
-	}
-	b, err := json.Marshal(r.StructuredContent)
-	if err != nil {
-		return err
-	}
-	return json.Unmarshal(b, dst)
 }
 
 func (t updateTarget) probe(ctx context.Context, version string) error {

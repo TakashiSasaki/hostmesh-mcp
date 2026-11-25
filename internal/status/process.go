@@ -1,4 +1,4 @@
-//go:build linux || darwin
+//go:build linux || darwin || windows
 
 package status
 
@@ -6,12 +6,8 @@ import (
 	"cmp"
 	"context"
 	"errors"
-	"os"
 	"slices"
 	"time"
-
-	"github.com/shirou/gopsutil/v4/process"
-	"golang.org/x/sys/unix"
 )
 
 const processLimit = 100
@@ -29,7 +25,7 @@ type processSample struct {
 var errProcessChanged = errors.New("process changed during sampling")
 
 func processSnapshot(ctx context.Context, scope string, details bool) ([]processSample, int, error) {
-	pids, err := process.PidsWithContext(ctx)
+	pids, err := processIDs(ctx)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -150,15 +146,4 @@ func processRow(sample, previous processSample) Process {
 		}
 	}
 	return item
-}
-
-func processAccessError(err error, fallbackCode string) error {
-	switch {
-	case errors.Is(err, os.ErrNotExist), errors.Is(err, unix.ESRCH):
-		return Error("PROCESS_NOT_FOUND", "process no longer exists")
-	case errors.Is(err, unix.EPERM), errors.Is(err, unix.EACCES):
-		return Error("FORBIDDEN", "the OS denied access to the process")
-	default:
-		return Error(fallbackCode, err.Error())
-	}
 }

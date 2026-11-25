@@ -1,6 +1,6 @@
 # host-status-mcp 設計
 
-MCP クライアントは、接続先のサーバからローカルまたは別ホストの状態を取得する。当面の開発と配布対象は Linux の ARM64 と x86_64。Windows 対応は後続とし、macOS は読み取り系のツールを提供し、GitHub Actions で検証する。各ホストは台帳を同期し、到達できるペアで自動的にフルメッシュを形成する。直結が使えないペアは、共通の中継を 1 台経由して照会する。約 100 台を想定し、閉域での平文ピア通信と、任意の mTLS を設計する。
+MCP クライアントは、接続先のサーバからローカルまたは別ホストの状態を取得する。当面の開発と配布対象は Linux の ARM64 と x86_64。Windows x64 と macOS は読み取り系のツールを提供し、GitHub Actions で検証する。各ホストは台帳を同期し、到達できるペアで自動的にフルメッシュを形成する。直結が使えないペアは、共通の中継を 1 台経由して照会する。約 100 台を想定し、閉域での平文ピア通信と、任意の mTLS を設計する。
 
 ## 接続構成
 
@@ -122,13 +122,13 @@ Linux の `system` は `/etc/os-release` の `ID`、`NAME`、`VERSION`、`VERSIO
 
 `processes` は PID とプロセスの開始時刻を比較して CPU 時間の差分を取り、1 コアを 100% とする使用率で並べる。最大 100 件を返し、差分が取れないプロセスは CPU 使用率を `null` にする。名前、PID、常駐メモリと、取得できる場合はプロセスの識別子 `process_identity` を返す。 `cpu` も指定された照会では両方のサンプルを並行して採取する。
 
-`swap` は Linux のスワップ総量・使用量・空き容量をバイトで返す。Windows のページファイル採取は Windows 対応時に設計する。
+`swap` は Linux のスワップ総量・使用量・空き容量をバイトで返す。Windows では各ページファイルの使用量と空きを合算し、個別の名前・容量・使用量を `page_files` に含める。
 
 `clock` は照会先で採取の完了時にシステム時計を一度読み、同じ時刻を `observed_at`、`clock.utc_time`、`clock.local_time` に使う。現地時刻、タイムゾーンの略称、UTC オフセットは採取プロセスで有効なタイムゾーンに従う。
 
 `storage.mounts` は `/proc/self/mountinfo` のマウント ID、マウント先、マウントされたサブツリーのルート、マウント元、ファイルシステム種別、読み取り専用状態を返す。マウント ID は採取元の名前空間におけるスナップショット内の値。ネットワーク共有や仮想ファイルシステムも含む。マウントオプションの値や自動マウント先の容量は採取しない。 [Linux の mountinfo](https://man7.org/linux/man-pages/man5/proc_pid_mountinfo.5.html)
 
-`storage.block_devices` は `/sys/class/block` のブロックデバイスを返し、サイズはバイトで示す。デバイス ID は Linux の major:minor で、マウントとデバイスの対応は `block_device_id` に、パーティションの親は `parent_id` に、device-mapper や RAID の下位デバイスは `backing_device_ids` に入れる。マウント側のデバイス番号が一致しない場合は、確認できるマウント元のブロックデバイスを使う。複数デバイスにまたがるファイルシステムの全構成や、未マウントのファイルシステム種別はここでは採取しない。Windows のドライブ文字とボリュームの対応は Windows 実装時に扱う。 [Linux の sysfs](https://www.kernel.org/doc/html/latest/filesystems/sysfs.html)
+`storage.block_devices` は `/sys/class/block` のブロックデバイスを返し、サイズはバイトで示す。デバイス ID は Linux の major:minor で、マウントとデバイスの対応は `block_device_id` に、パーティションの親は `parent_id` に、device-mapper や RAID の下位デバイスは `backing_device_ids` に入れる。マウント側のデバイス番号が一致しない場合は、確認できるマウント元のブロックデバイスを使う。複数デバイスにまたがるファイルシステムの全構成や、未マウントのファイルシステム種別はここでは採取しない。Windows ではボリューム GUID と、そのボリュームに割り当てられたドライブ文字・マウント先の一覧を対応付ける。 [Linux の sysfs](https://www.kernel.org/doc/html/latest/filesystems/sysfs.html)
 
 片方の一覧だけ取得できた場合は、取得できた一覧と `section_errors` を返す。ピア応答が既存の 1 MiB 上限を超える場合は `RESULT_TOO_LARGE` を返す。
 

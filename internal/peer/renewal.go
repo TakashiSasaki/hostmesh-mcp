@@ -23,6 +23,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/TakashiSasaki/host-status-mcp/internal/localfile"
 	"github.com/smallstep/pkcs7"
 )
 
@@ -35,6 +36,7 @@ type RenewalConfig struct {
 }
 
 func (c RenewalConfig) offersRoute() bool { return c.Relay || c.Gateway != "" }
+
 func (c RenewalConfig) Validate() error {
 	if c.URL == "" && !c.offersRoute() {
 		return errors.New("peer.renewal requires url, relay or gateway")
@@ -328,10 +330,10 @@ func (p *Peer) installRenewal(old *x509.Certificate, chain []byte) error {
 		return err
 	}
 	defer d.Close()
-	if err = os.Rename(f.Name(), path); err != nil {
+	if err = localfile.Replace(f.Name(), path); err != nil {
 		return err
 	}
-	if err = d.Sync(); err != nil {
+	if err = localfile.SyncDir(d); err != nil {
 		// Rename has committed. Activate the on-disk identity even when the
 		// filesystem cannot confirm durability across a later power failure.
 		p.log.Warn("renewed certificate installed; directory sync failed", "err", err)

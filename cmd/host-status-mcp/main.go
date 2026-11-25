@@ -85,7 +85,7 @@ func run(ctx context.Context, args []string) error {
 		return err
 	}
 	defer store.Close()
-	filesystems := []string{"/"}
+	filesystems := []string{defaultFilesystemRoot()}
 	s := &service.Service{State: store, Collect: status.Native(filesystems, version)}
 	fmt.Fprintf(os.Stderr, "host-status-mcp %s node_id=%s\n", version, store.Self().ID)
 	server := mcpserver.New(version, s)

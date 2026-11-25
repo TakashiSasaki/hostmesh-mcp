@@ -16,9 +16,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/TakashiSasaki/host-status-mcp/internal/localfile"
 	"github.com/TakashiSasaki/host-status-mcp/internal/status"
 	"github.com/google/uuid"
-	"golang.org/x/sys/unix"
 )
 
 type RecordTrust interface {
@@ -75,6 +75,7 @@ func OpenLocal(dir string, local status.Node) (*Store, error) {
 func OpenWithTrust(dir string, local status.Node, trust RecordTrust) (*Store, error) {
 	return open(dir, local, trust, false)
 }
+
 func open(dir string, local status.Node, trust RecordTrust, localOnly bool) (*Store, error) {
 	if err := os.MkdirAll(dir, 0700); err != nil {
 		return nil, err
@@ -83,7 +84,7 @@ func open(dir string, local status.Node, trust RecordTrust, localOnly bool) (*St
 	if err != nil {
 		return nil, err
 	}
-	if err := unix.Flock(int(lock.Fd()), unix.LOCK_EX|unix.LOCK_NB); err != nil {
+	if err := localfile.Lock(lock, true, false); err != nil {
 		lock.Close()
 		return nil, fmt.Errorf("lock state directory: %w", err)
 	}
@@ -185,10 +186,10 @@ func (s *Store) commit(next snapshot) error {
 		return err
 	}
 	defer dir.Close()
-	if err := os.Rename(f.Name(), filepath.Join(s.dir, "state.json")); err != nil {
+	if err := localfile.Replace(f.Name(), filepath.Join(s.dir, "state.json")); err != nil {
 		return err
 	}
-	if err := dir.Sync(); err != nil {
+	if err := localfile.SyncDir(dir); err != nil {
 		return err
 	}
 	s.data = next

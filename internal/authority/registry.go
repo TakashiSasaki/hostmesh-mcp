@@ -12,11 +12,10 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"syscall"
 
+	"github.com/TakashiSasaki/host-status-mcp/internal/localfile"
 	"github.com/TakashiSasaki/host-status-mcp/internal/peer"
 	"github.com/google/uuid"
-	"golang.org/x/sys/unix"
 )
 
 // Profile is the local administrator's authorization, independent of CSR claims.
@@ -35,6 +34,7 @@ func ReadProfile(path string) (Profile, error) {
 	}
 	return p, p.validate()
 }
+
 func (p Profile) validate() error {
 	u, err := uuid.Parse(p.NodeID)
 	if err != nil || u.Version() != 4 || u.String() != p.NodeID {
@@ -91,17 +91,7 @@ func withRegistry(dir string, exclusive bool, f func(string) error) error {
 		return err
 	}
 	defer lock.Close()
-	mode := unix.LOCK_SH
-	if exclusive {
-		mode = unix.LOCK_EX
-	}
-	for {
-		err = unix.Flock(int(lock.Fd()), mode)
-		if !errors.Is(err, syscall.EINTR) {
-			break
-		}
-	}
-	if err != nil {
+	if err := localfile.Lock(lock, exclusive, true); err != nil {
 		return err
 	}
 	return f(filepath.Join(dir, "registry.json"))
@@ -158,10 +148,10 @@ func (r registry) save(path string) error {
 	if err = f.Close(); err != nil {
 		return err
 	}
-	if err = os.Rename(f.Name(), path); err != nil {
+	if err = localfile.Replace(f.Name(), path); err != nil {
 		return err
 	}
-	return d.Sync()
+	return localfile.SyncDir(d)
 }
 
 func Init(dir string) error {

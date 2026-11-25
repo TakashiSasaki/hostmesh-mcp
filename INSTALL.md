@@ -1,12 +1,12 @@
 # インストール
 
-バージョン 0.0.23 の導入手順です。リポジトリ名は `hostmesh-mcp`、インストールするコマンド名は `host-status-mcp` です。この版のビルド済みバイナリは GitHub Releases で未配布のため、以下ではソースからインストールします。[リリース一覧](https://github.com/TakashiSasaki/hostmesh-mcp/releases)
+リポジトリ名は `hostmesh-mcp`、インストールするコマンド名は `host-status-mcp` です。Windows x64 は CI でテスト済みの実行ファイルを取得できます。GitHub Releases への正式配布は準備中です。[リリース一覧](https://github.com/TakashiSasaki/hostmesh-mcp/releases)
 
 | 使う環境 | 導入方法 |
 | --- | --- |
 | Linux（ARM64、x86-64） | 対象ホストでビルド。小型機向けには別のホストからもビルド可能 |
 | macOS（Apple Silicon、Intel） | Mac のターミナルでビルド。どちらの CPU でも同じ手順 |
-| Windows x64 | ネイティブ版は未対応。WSL 2 内の Linux を監視する場合は [Windows での手順](#windows) を使用 |
+| Windows x64 | [Windows ホストにネイティブ版を導入](#windows) |
 
 ## Linux と macOS
 
@@ -51,18 +51,46 @@ CGO_ENABLED=0 GOOS=linux GOARCH=arm64 GOARM64=v8.0 go build -trimpath -o host-st
 
 ## Windows
 
-0.0.23 には Windows ネイティブの実行ファイルがありません。Windows 自体のプロセス、ドライブ、ページファイルの監視は未対応です。**WSL 2 内の Linux の状態**を Windows の MCP クライアントから調べたい場合は、次の手順で Linux 版を起動できます。この構成はプロジェクトの CI 対象外です。
+監視したい Windows x64 マシン上で `host-status-mcp.exe` を実行します。Windows の OS・カーネル、CPU、物理メモリ、ページファイル、プロセス、ネットワークインターフェース、ドライブ文字・ボリュームを一般ユーザーの権限で照会できます。
 
-1. Ubuntu を導入済みの場合は、PowerShell で `wsl --list --verbose` を実行し、Ubuntu の `VERSION` が `2` であることを確認します。初めて使う場合は、管理者 PowerShell で `wsl --install -d Ubuntu` を実行し、求められたら Windows を再起動して Ubuntu のユーザーを作成します。[Microsoft の WSL 導入手順](https://learn.microsoft.com/ja-jp/windows/wsl/install)
-2. PowerShell で `wsl -d Ubuntu` を実行して Ubuntu のシェルに入り、`cd ~` してから上の [Linux と macOS](#linux-と-macos) の手順を実行します。Go と Git は Ubuntu 側にインストールします。
-3. Windows 側の PowerShell で、次のように起動を確認します。`/home/alice/.local/bin/host-status-mcp` は、Ubuntu 側の手順で表示した絶対パスに置き換えます。
+### テスト済みの exe を使う
+
+1. GitHub にサインインして [main の CI 一覧](https://github.com/TakashiSasaki/hostmesh-mcp/actions/workflows/ci.yml?query=branch%3Amain) を開き、Windows ジョブが成功した実行を選びます。実行概要の **Artifacts** から `host-status-mcp-windows-amd64` をダウンロードします。
+2. ZIP 内の `host-status-mcp.exe` を、自分のユーザーディレクトリの `AppData\Local\Programs\hostmesh-mcp` に配置します。PowerShell で次を実行すると、ダウンロード・フォルダーの既定のファイル名から展開し、インストールを確認できます。
 
    ```powershell
-   wsl.exe -d Ubuntu --exec /home/alice/.local/bin/host-status-mcp version
+   $installDir = Join-Path $env:LOCALAPPDATA 'Programs\hostmesh-mcp'
+   Expand-Archive -LiteralPath "$HOME\Downloads\host-status-mcp-windows-amd64.zip" -DestinationPath $installDir -Force
+   $exe = Join-Path $installDir 'host-status-mcp.exe'
+   & $exe version
+   $exe
    ```
 
-Windows の MCP クライアントには、コマンドとして `wsl.exe`、引数として次の配列を指定します。接続確認には `server_version` を使用します。
+3. Windows の MCP クライアントに、最後に表示された **exe の絶対パス**をコマンド、`["stdio"]` を引数として登録します。接続後、`host_status` に次の引数を渡し、`node.os` が `windows` であること、`storage.mounts` にシステムドライブがあることを確認します。
 
-```json
-["-d", "Ubuntu", "--exec", "/home/alice/.local/bin/host-status-mcp", "stdio"]
+   ```json
+   {"sections":["system","memory","swap","processes","storage"]}
+   ```
+
+ピアとして HTTP で起動する場合は、新しい設定ファイルの保存先で次を実行します。PowerShell の世代による既定の文字コードの違いを避けるため JSON を UTF-8 で保存します。別マシンからメッシュに参加する方法は[ピア接続の手順](README.md#2-台を接続する)を参照してください。
+
+```powershell
+[IO.File]::WriteAllText((Join-Path $PWD 'peer.json'), ((& $exe config example) -join [Environment]::NewLine))
+& $exe config check -config peer.json
+& $exe serve -config peer.json
+```
+
+### PowerShell でソースからビルドする
+
+CI の成果物が保存期間を過ぎている場合も、Windows 用の Git と Go を導入し、次のコマンドで同じ場所にネイティブ版をインストールできます。[Go の導入手順](https://go.dev/doc/install)
+
+```powershell
+git clone https://github.com/TakashiSasaki/hostmesh-mcp.git
+cd hostmesh-mcp
+$installDir = Join-Path $env:LOCALAPPDATA 'Programs\hostmesh-mcp'
+New-Item -ItemType Directory -Force $installDir | Out-Null
+$exe = Join-Path $installDir 'host-status-mcp.exe'
+$env:CGO_ENABLED = '0'
+go build -trimpath -o $exe ./cmd/host-status-mcp
+& $exe version
 ```
