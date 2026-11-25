@@ -36,28 +36,21 @@ func run(ctx context.Context, args []string) error {
 		return nil
 	}
 	if len(args) > 0 && args[0] == "config" {
-		if len(args) < 2 || args[1] != "example" {
-			return fmt.Errorf("usage: host-status-mcp config example [-join] [-mtls]")
+		if len(args) >= 2 {
+			switch args[1] {
+			case "example":
+				return configExample(args[2:], os.Stdout)
+			case "check":
+				return runConfigured(ctx, version, "config check", args[2:])
+			}
 		}
-		return configExample(args[2:], os.Stdout)
+		return fmt.Errorf("usage: host-status-mcp config example [-join] [-mtls] | config check -config <path>")
 	}
 	if len(args) > 0 && args[0] == "serve" {
-		flags := flag.NewFlagSet("serve", flag.ContinueOnError)
-		path := flags.String("config", "", "JSON configuration file")
-		if err := flags.Parse(args[1:]); err != nil {
-			return err
-		}
-		if *path == "" || flags.NArg() != 0 {
-			return fmt.Errorf("usage: host-status-mcp serve -config <path>\nGenerate a template with: host-status-mcp config example > peer.json")
-		}
-		cfg, err := readConfig(*path)
-		if err != nil {
-			return err
-		}
-		return serve(ctx, version, cfg)
+		return runConfigured(ctx, version, "serve", args[1:])
 	}
 	if len(args) == 0 || args[0] != "stdio" {
-		return fmt.Errorf("usage: host-status-mcp version | stdio [-state-dir directory] | serve -config <path> | config example [-join] [-mtls]")
+		return fmt.Errorf("usage: host-status-mcp version | stdio [-state-dir directory] | serve -config <path> | config example [-join] [-mtls] | config check -config <path>")
 	}
 	flags := flag.NewFlagSet("stdio", flag.ContinueOnError)
 	dir := flags.String("state-dir", "", "persistent state directory")
@@ -89,4 +82,32 @@ func run(ctx context.Context, args []string) error {
 	mcpserver.AddProcessStatus(server, store.Self().ID)
 	mcpserver.AddProcessKill(server, store.Self().ID)
 	return server.Run(ctx, &mcp.StdioTransport{})
+}
+
+func runConfigured(ctx context.Context, version, command string, args []string) error {
+	flags := flag.NewFlagSet("host-status-mcp "+command, flag.ContinueOnError)
+	path := flags.String("config", "", "JSON configuration file")
+	if err := flags.Parse(args); err != nil {
+		if err == flag.ErrHelp {
+			return nil
+		}
+		return err
+	}
+	if *path == "" || flags.NArg() != 0 {
+		return fmt.Errorf("usage: host-status-mcp %s -config <path>\nGenerate a template with: host-status-mcp config example > peer.json", command)
+	}
+
+	cfg, err := readConfig(*path)
+	if err != nil {
+		return fmt.Errorf("configuration %q: %w", *path, err)
+	}
+	security, err := cfg.Peer.loadTLS()
+	if err != nil {
+		return fmt.Errorf("configuration %q: %w", *path, err)
+	}
+	if command == "config check" {
+		_, err := fmt.Fprintf(os.Stdout, "Configuration OK (peer mode: %s)\n", cfg.Peer.Security)
+		return err
+	}
+	return serve(ctx, version, cfg, security)
 }

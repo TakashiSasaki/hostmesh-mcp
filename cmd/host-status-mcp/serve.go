@@ -50,19 +50,32 @@ func readConfig(path string) (config, error) {
 		return c, err
 	}
 	defer f.Close()
-	decoder := json.NewDecoder(io.LimitReader(f, 1<<20))
+	const maxConfigSize = 1 << 20
+	reader := &io.LimitedReader{R: f, N: maxConfigSize + 1}
+	decoder := json.NewDecoder(reader)
 	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&c); err != nil {
+	object := &c
+	if err := decoder.Decode(&object); err != nil {
 		return c, fmt.Errorf("decode configuration: %w", err)
 	}
-	if err := decoder.Decode(new(any)); err != io.EOF {
+	if err := decoder.Decode(new(any)); err != io.EOF || object == nil {
 		return c, fmt.Errorf("configuration must contain one JSON object")
 	}
+	if reader.N == 0 {
+		return c, fmt.Errorf("configuration exceeds %d bytes", maxConfigSize)
+	}
 	if c.MCPListen != "" {
-		host, _, err := net.SplitHostPort(c.MCPListen)
-		ip, ipErr := netip.ParseAddr(host)
-		if err != nil || ipErr != nil || !ip.IsLoopback() {
+		host, err := listenHost(c.MCPListen)
+		if err != nil {
+			return c, fmt.Errorf("mcp_listen: %w", err)
+		}
+		if ip, err := netip.ParseAddr(host); err != nil || !ip.IsLoopback() {
 			return c, fmt.Errorf("mcp_listen must be a loopback IP and port")
+		}
+	}
+	if c.Peer.Listen != "" {
+		if _, err := listenHost(c.Peer.Listen); err != nil {
+			return c, fmt.Errorf("peer.listen: %w", err)
 		}
 	}
 	if c.MCPListen == "" && c.Peer.Listen == "" && len(c.Peer.Seeds) == 0 {
@@ -104,7 +117,31 @@ func readConfig(path string) (config, error) {
 	return c, nil
 }
 
-func serve(ctx context.Context, version string, c config) error {
+// Validate the socket address and TCP service without resolving the host or binding.
+func listenHost(address string) (string, error) {
+	host, port, err := net.SplitHostPort(address)
+	if err != nil {
+		return "", err
+	}
+	_, err = net.LookupPort("tcp", port)
+	return host, err
+}
+
+func (p peerConfig) loadTLS() (*peer.PeerTLS, error) {
+	if p.Security != "mtls" {
+		return nil, nil
+	}
+	security, err := peer.LoadPeerTLS(p.CAFile, p.CertFile, p.KeyFile)
+	if err != nil {
+		return nil, fmt.Errorf("peer mTLS: %w", err)
+	}
+	if slices.Contains(p.DenyNodes, security.NodeID()) {
+		return nil, fmt.Errorf("cannot deny the local node")
+	}
+	return security, nil
+}
+
+func serve(ctx context.Context, version string, c config, security *peer.PeerTLS) error {
 	if c.StateDir == "" {
 		var err error
 		c.StateDir, err = defaultStateDir()
@@ -124,13 +161,8 @@ func serve(ctx context.Context, version string, c config) error {
 	if err != nil {
 		return err
 	}
-	var security *peer.PeerTLS
 	var trust state.RecordTrust
-	if c.Peer.Security == "mtls" {
-		security, err = peer.LoadPeerTLS(c.Peer.CAFile, c.Peer.CertFile, c.Peer.KeyFile)
-		if err != nil {
-			return err
-		}
+	if security != nil {
 		trust = security
 	}
 	dir, err := state.OpenWithTrust(c.StateDir, info, trust)

@@ -262,7 +262,7 @@ func TestPeerSecurityConfiguration(t *testing.T) {
 			if tc.want == "mtls" {
 				ctx, cancel := context.WithCancel(t.Context())
 				cancel()
-				if err := serve(ctx, "test", c); !errors.Is(err, os.ErrNotExist) {
+				if err := run(ctx, []string{"serve", "-config", path}); !errors.Is(err, os.ErrNotExist) {
 					t.Fatalf("expected missing certificate file error, got %v", err)
 				}
 			}
