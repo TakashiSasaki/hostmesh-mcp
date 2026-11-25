@@ -73,6 +73,8 @@ Linux の `supervise` はホストごとのローカルな監督プロセスと�
 
 `process_kill` は Linux PoC のローカル操作とする。stdio で登録し、ループバックの HTTP では `allow_process_kill` が有効な場合に登録する。プロセスの識別子にはノード ID、OS の起動 ID、PID 名前空間、PID、プロセスの開始時刻を使う。操作時は対象の pidfd を開き、識別子を照合したうえでその pidfd にシグナルを送る。識別子の不一致、送信権限の不足、PID 1 とサーバー自身への操作はエラーにする。ピア間の RPC は状態照会を扱う。 [Linux の pidfd](https://man7.org/linux/man-pages/man2/pidfd_open.2.html) [pidfd によるシグナル送信](https://man7.org/linux/man-pages/man2/pidfd_send_signal.2.html)
 
+macOS 版では、stdio と HTTP の両方で `process_kill` を登録しない。`allow_process_kill` の値によらず適用する。読み取り専用の `process_status` と `host_status` の `processes` セクションは提供対象とする。
+
 たとえば A の `host_status` に `{"target":{"hostname":"build","ip":"192.0.2.32"},"sections":["memory"]}` を渡すと、B が採取した値を返す。
 
 ```json

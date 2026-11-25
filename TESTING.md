@@ -64,6 +64,7 @@ Docker 試験ではホスト側でバイナリをビルドし、外部のベー�
 - Linux の ARM64 と x86_64 の配布用バイナリを各アーキテクチャの実行環境で起動し、`version`、採取、MCP 照会を確認する。curl を使う 1 行の導入手順で、対応バイナリの取得、整合性確認、インストール、起動まで試す。
 
 - Windows または macOS に着手した段階で、共通スキーマ、ネイティブ採取、保存と再起動、`stdio`、`/mcp` を検証する。Windows では通常ユーザー権限も確認する。Linux との混在構成で、両方向の照会と共通中継を試す。
+- macOS 版では stdio と HTTP の `tools/list` に `process_kill` が含まれず、直接の `tools/call` も未知のツールとして拒否されることを確認する。HTTP では `allow_process_kill: true` でも検査する。同じ接続で `process_status` と `host_status` の `processes` による読み取りを確認する。
 - mTLS 試験では、テスト専用 CA と証明書を試験ごとに生成する。3 パターンの照会、別 CA、期限切れ、DNS または IP の不一致、`node_id` の不一致、台帳署名の不一致、許可取り消しを確認する。PoC では証明書ファイルなしの構成を合格条件とする。
 
 
