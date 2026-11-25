@@ -10,6 +10,7 @@ require (
 	github.com/shirou/gopsutil/v4 v4.26.10
 	github.com/smallstep/pkcs7 v0.2.3
 	golang.org/x/sys v0.48.0
+	howett.net/plist v1.0.1
 )
 
 require (
@@ -19,7 +20,7 @@ require (
 )
 
 require (
-	github.com/ebitengine/purego v0.11.2 // indirect
+	github.com/ebitengine/purego v0.11.2
 	github.com/go-ole/go-ole v1.2.6 // indirect
 	github.com/google/jsonschema-go v0.4.3 // indirect
 	github.com/lufia/plan9stats v0.0.0-20211012122336-39d0f177ccd0 // indirect

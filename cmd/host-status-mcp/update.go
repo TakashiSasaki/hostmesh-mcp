@@ -9,12 +9,16 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"time"
 
 	"golang.org/x/sys/unix"
 )
 
 func runUpdate(ctx context.Context, args []string) error {
+	if runtime.GOOS != "linux" {
+		return errors.New("binary updates require Linux")
+	}
 	const usage = "usage: host-status-mcp update {check|apply} -config <updater.json>"
 	if len(args) == 0 || (args[0] != "check" && args[0] != "apply") {
 		return errors.New(usage)

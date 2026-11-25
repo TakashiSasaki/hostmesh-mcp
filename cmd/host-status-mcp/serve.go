@@ -319,14 +319,12 @@ func serveGeneration(ctx context.Context, version string, c *config, security *p
 	if peerListener != nil {
 		runtimePeer.Listen = peerListener.Addr().String()
 	}
+	allowKill := mcpserver.RegisterProcessKill(mcp, dir.Self().ID, c.AllowProcessKill)
 	mcpserver.AddServerConfig(mcp, mcpserver.ServerConfig{
 		NodeID: dir.Self().ID, MCPTransport: "http", MCPListen: mcpListener.Addr().String(),
-		StateDir: c.StateDir, Filesystems: c.Filesystems, AllowProcessKill: c.AllowProcessKill, Peer: runtimePeer,
+		StateDir: c.StateDir, Filesystems: c.Filesystems, AllowProcessKill: allowKill, Peer: runtimePeer,
 	}, leaf)
 	mcpserver.AddProcessStatus(mcp, dir.Self().ID)
-	if c.AllowProcessKill {
-		mcpserver.AddProcessKill(mcp, dir.Self().ID)
-	}
 	handler := mcpserver.HTTP(mcp)
 	server := &http.Server{Handler: handler, ReadHeaderTimeout: 3 * time.Second, ReadTimeout: 10 * time.Second, WriteTimeout: 10 * time.Second, IdleTimeout: 30 * time.Second}
 	fmt.Fprintf(os.Stderr, "MCP listening on http://%s/mcp\n", mcpListener.Addr())

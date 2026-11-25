@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"os"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -41,7 +42,11 @@ func TestStdio(t *testing.T) {
 			t.Fatalf("server advertised version %q", version)
 		}
 		tools, err := session.ListTools(ctx, nil)
-		if err != nil || len(tools.Tools) != 6 {
+		wantTools := 6
+		if runtime.GOOS == "darwin" {
+			wantTools = 5
+		}
+		if err != nil || len(tools.Tools) != wantTools {
 			t.Fatalf("tool list = %v, err = %v", tools, err)
 		}
 		for _, tool := range tools.Tools {
@@ -63,7 +68,7 @@ func TestStdio(t *testing.T) {
 		}
 		cfg := callServerConfig(t, session, true)
 		if cfg.MCPTransport != "stdio" || cfg.MCPListen != "" || cfg.Peer.Security != "disabled" ||
-			cfg.Certificate != nil || cfg.StateDir != dir || !cfg.AllowProcessKill || cfg.NodeID == "" {
+			cfg.Certificate != nil || cfg.StateDir != dir || cfg.AllowProcessKill != (runtime.GOOS == "linux") || cfg.NodeID == "" {
 			t.Fatalf("unexpected stdio config: %+v", cfg)
 		}
 		versionReply, err := session.CallTool(ctx, &mcp.CallToolParams{Name: "server_version", Arguments: map[string]any{}})
@@ -87,7 +92,7 @@ func TestStdio(t *testing.T) {
 		if err := json.Unmarshal(b, &r); err != nil {
 			t.Fatal(err)
 		}
-		if r.Node.ID == "" || r.Node.OS != "linux" || r.ObservedAt.IsZero() || r.Route.Kind != "local" {
+		if r.Node.ID == "" || r.Node.OS != runtime.GOOS || r.ObservedAt.IsZero() || r.Route.Kind != "local" {
 			t.Fatalf("invalid local result: %+v", r)
 		}
 		if r.Sections.System == nil || r.Sections.System.ServerVersion != strings.TrimSpace(versionFile) || r.Sections.CPU == nil || r.Sections.Memory == nil || len(r.Sections.Filesystems) != 1 {

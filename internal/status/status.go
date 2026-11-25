@@ -85,9 +85,9 @@ type Filesystem struct {
 }
 
 type Mount struct {
-	MountID        int    `json:"mount_id"`
+	MountID        int    `json:"mount_id,omitempty"`
 	MountPoint     string `json:"mount_point"`
-	Root           string `json:"root"`
+	Root           string `json:"root,omitempty"`
 	Source         string `json:"source"`
 	FilesystemType string `json:"filesystem_type"`
 	ReadOnly       bool   `json:"read_only"`

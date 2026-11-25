@@ -119,14 +119,3 @@ func processSignalError(err error) error {
 	}
 	return processAccessError(err, "SIGNAL_FAILED")
 }
-
-func processAccessError(err error, fallbackCode string) error {
-	switch {
-	case errors.Is(err, os.ErrNotExist), errors.Is(err, unix.ESRCH):
-		return Error("PROCESS_NOT_FOUND", "process no longer exists")
-	case errors.Is(err, unix.EPERM), errors.Is(err, unix.EACCES):
-		return Error("FORBIDDEN", "the OS denied access to the process")
-	default:
-		return Error(fallbackCode, err.Error())
-	}
-}

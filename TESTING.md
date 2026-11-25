@@ -1,6 +1,6 @@
 # host-status-mcp テスト設計
 
-当面は Linux 上で、ホストの Go を使った単体・結合テストと、Docker を使った複数ノード試験を行う。Linux の配布対象は ARM64 と x86_64。Windows 対応は後続とし、macOS は環境を確保できた時点でのオプションとする。
+当面は Linux 上で、ホストの Go を使った単体・結合テストと、Docker を使った複数ノード試験を行う。Linux の配布対象は ARM64 と x86_64。Windows 対応は後続とし、macOS は GitHub Actions の Apple Silicon と Intel のランナーで実行試験を行う。
 
 ## PoC の単体テスト
 
@@ -124,3 +124,5 @@ HOST_STATUS_DOCKER_TEST=1 go test -count=1 -v ./cmd/host-status-mcp -run '^TestD
 ```
 
 `TestAuthorityLifecycle` はローカル CLI と実際の TLS 接続で、登録済みの ID と鍵、承認した名前とシード、異なる鍵や不正な署名の拒否、同一鍵の複数世代の失効、CA 再起動後の失効維持、手動の新鍵登録を検証する。
+
+GitHub Actions は Linux と macOS のネイティブバイナリをビルドし、各 OS でそのバイナリを使ってテストする。`TestMacPeer` は stdio と HTTP でツール一覧・未登録ツールの直接呼び出し・プロセス照会を確認し、mTLS ピア越しに CPU 順のプロセス一覧、ディスク、インターフェースなどを取得する。
