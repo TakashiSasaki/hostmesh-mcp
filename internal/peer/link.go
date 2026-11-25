@@ -10,7 +10,9 @@ import (
 	wire "github.com/TakashiSasaki/host-status-mcp/proto/hoststatus/peer/v1"
 	"github.com/google/uuid"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
+	grpcpeer "google.golang.org/grpc/peer"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -48,8 +50,12 @@ func (p *Peer) Link(s grpc.BidiStreamingServer[wire.Frame, wire.Frame]) error {
 }
 
 func (p *Peer) connect(endpoint, expectedID, seed string, ready func()) bool {
+	var creds credentials.TransportCredentials = insecure.NewCredentials()
+	if p.config.TLS != nil {
+		creds = credentials.NewTLS(p.config.TLS.transport(false))
+	}
 	c, err := grpc.NewClient("passthrough:///"+endpoint,
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithTransportCredentials(creds),
 		grpc.WithContextDialer(p.dial),
 		grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(maxFrame), grpc.MaxCallSendMsgSize(maxFrame)))
 	if err != nil {
@@ -118,14 +124,38 @@ func (p *Peer) runStream(s stream, id, expectedID, seed string, established func
 	if err != nil || n.ID == self.ID || p.denied(n.ID) || expectedID != "" && n.ID != expectedID {
 		return false
 	}
-	l.remote = n.ID
-	if id == "" {
-		l.id, l.initiator = h.LinkId, n.ID
-		l.send(hello(self, l.id))
+	if security := p.config.TLS; security != nil {
+		peerInfo, ok := grpcpeer.FromContext(s.Context())
+		if !ok {
+			return false
+		}
+		info, ok := peerInfo.AuthInfo.(credentials.TLSInfo)
+		if !ok || len(info.State.VerifiedChains) == 0 {
+			return false
+		}
+		chain := info.State.VerifiedChains[0]
+		certID, err := certificateID(chain[0])
+		if err != nil || certID != n.ID {
+			return false
+		}
+		until := chainExpiry(chain)
+		if security.validUntil.Before(until) {
+			until = security.validUntil
+		}
+		if !time.Now().Before(until) {
+			return false
+		}
+		expiry := time.AfterFunc(time.Until(until), stop)
+		defer expiry.Stop()
 	}
+	l.remote = n.ID
 	if err := p.importRecords([]status.Node{n}); err != nil {
 		p.log.Error("save peer record", "err", err)
 		return false
+	}
+	if id == "" {
+		l.id, l.initiator = h.LinkId, n.ID
+		l.send(hello(self, l.id))
 	}
 	registered := p.register(l, seed)
 	if established != nil {

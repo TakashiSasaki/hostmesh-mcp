@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/TakashiSasaki/host-status-mcp/internal/status"
+	"github.com/google/uuid"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -90,12 +91,32 @@ func startServeProcess(t *testing.T, c config) readyProcess {
 }
 
 func TestServeRelayProcesses(t *testing.T) {
-	c := startServeProcess(t, config{Peer: peerConfig{Security: "plaintext", Listen: "127.0.0.1:0", Relay: true}})
-	cfg := peerConfig{Security: "plaintext", Seeds: []string{c.peer}, TrustedRelays: []string{c.id}}
+	for _, mode := range []string{"plaintext", "mtls"} {
+		t.Run(mode, func(t *testing.T) {
+			mk := func() peerConfig { return peerConfig{Security: "plaintext"} }
+			if mode == "mtls" {
+				ca := newTestCA(t)
+				mk = func() peerConfig { return ca.issue(t, uuid.NewString(), time.Now().Add(time.Hour)) }
+			}
+			testServeRelay(t, mk)
+		})
+	}
+}
+
+func testServeRelay(t *testing.T, mk func() peerConfig) {
+	hub := mk()
+	hub.Listen, hub.Relay = "127.0.0.1:0", true
+	c := startServeProcess(t, config{Peer: hub})
+	edge := func() peerConfig {
+		cfg := mk()
+		cfg.Seeds = []string{c.peer}
+		cfg.TrustedRelays = []string{c.id}
+		return cfg
+	}
 	missingA := filepath.Join(t.TempDir(), "missing-a")
 	missingB := filepath.Join(t.TempDir(), "missing-b")
-	b := startServeProcess(t, config{Peer: cfg, Filesystems: []string{missingB}})
-	a := startServeProcess(t, config{MCPListen: "127.0.0.1:0", Peer: cfg, Filesystems: []string{missingA}})
+	b := startServeProcess(t, config{Peer: edge(), Filesystems: []string{missingB}})
+	a := startServeProcess(t, config{MCPListen: "127.0.0.1:0", Peer: edge(), Filesystems: []string{missingA}})
 
 	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, a.mcp, nil)
 	if err != nil {

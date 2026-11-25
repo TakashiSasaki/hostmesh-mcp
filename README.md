@@ -48,6 +48,53 @@ MCP クライアントから A の `http://127.0.0.1:8787/mcp` に接続する�
 
 A と B が C を共通中継にする場合は、C で `peer.relay: true` と `peer.listen` を設定する。A と B のシードに C のアドレスを設定し、両方の `peer.trusted_relays` に C の起動ログに出る `node_id` を追加する。`peer.deny_nodes` に設定した ID の接続と照会を拒否する。設定変更はプロセスの起動時に適用する。
 
+## ピア間の mTLS
+
+接続する全ノードで `peer.security` を `mtls` に設定する。ピアは TLS 1.3 で相互認証し、初回接続でも証明書に記載したノード ID と台帳の発行元署名を検証する。MCP クライアントは従来どおり stdio またはループバック HTTP で接続する。閉域網で証明書を使わない運用には `plaintext` を選べる。
+
+次は A のピア設定例。B には B 固有の証明書と鍵を配置し、`seeds` に `["a.example.internal:7443"]` を指定する。既存ノードは `state_dir` を引き継ぎ、`host_list` の `is_local: true` に表示された UUID を証明書に使う。新規ノードは UUID v4 を一つ発行し、その値を証明書と初回の永続 ID に使う。
+
+```json
+{
+  "peer": {
+    "security": "mtls",
+    "listen": ":7443",
+    "advertise": ["a.example.internal:7443"],
+    "ca_file": "/etc/host-status-mcp/ca.pem",
+    "cert_file": "/etc/host-status-mcp/node.pem",
+    "key_file": "/etc/host-status-mcp/node.key"
+  }
+}
+```
+
+**証明書の発行例**。各ノードで新しい作業ディレクトリに秘密鍵と CSR を作成し、CSR を CA 管理者に渡す。
+
+```sh
+umask 077
+openssl genpkey -algorithm EC -pkeyopt ec_paramgen_curve:P-256 -out node.key
+openssl req -new -key node.key -subj '/CN=a.example.internal' -out node.csr
+```
+
+CA 管理者はノードの UUID と接続用の DNS 名・IP を確認し、以下の `node.ext` の例をそのノードの値に置き換える。発信にも待ち受けにも使う証明書には両方の拡張鍵用途を設定する。
+
+```ini
+basicConstraints=critical,CA:FALSE
+keyUsage=critical,digitalSignature
+extendedKeyUsage=clientAuth,serverAuth
+subjectAltName=URI:urn:host-status-mcp:node:7043f65e-b1f6-489d-a0d2-5d402035735d,DNS:a.example.internal,IP:192.0.2.10
+```
+
+管理者の署名環境で既存の自己署名 CA を使って発行する。
+
+```sh
+openssl x509 -req -in node.csr -CA ca.pem -CAkey ca.key -CAcreateserial \
+  -days 90 -sha256 -extfile node.ext -out node.pem
+```
+
+ノードに CA の公開証明書と発行済みのノード証明書を渡す。中間 CA がある場合、`cert_file` の PEM はノード証明書を先頭に中間証明書を続ける。CA の秘密鍵は署名環境で保管する。
+
+設定と証明書は `serve` の起動時に読み込む。更新時は同じ UUID の証明書を配置し、期限前にノードを再起動する。有効期限に達したリンクは切断される。特定ノードの参加を取り消す場合は各ノードの `peer.deny_nodes` に ID を追加して再起動する。平文と mTLS を切り替えるときは、方式をそろえたシードから他ノードの台帳を再取得する。
+
 ## 状態照会
 
 `server_version` は、MCP クライアントが接続しているサーバーの名前とバージョンを返す。指定したピアのバージョンは `host_status` の `system.server_version` に含まれる。

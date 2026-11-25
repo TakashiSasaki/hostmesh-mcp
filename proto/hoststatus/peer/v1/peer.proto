@@ -35,6 +35,8 @@ message NodeRecord {
   repeated string endpoints = 5;
   bool relay = 6;
   uint64 revision = 7;
+  repeated bytes cert_chain = 8;
+  bytes signature = 9;
 }
 
 message Heartbeat {}

@@ -236,15 +236,25 @@ func (l *link) sendRecords(req *wire.RecordRequest) bool {
 		ids[id] = true
 	}
 	out := &wire.Records{}
+	frame := func() *wire.Frame { return &wire.Frame{Body: &wire.Frame_Records{Records: out}} }
 	for _, n := range l.owner.dir.Nodes() {
-		if ids[n.ID] && !l.owner.denied(n.ID) {
-			out.Nodes = append(out.Nodes, nodeToWire(n))
+		if !ids[n.ID] || l.owner.denied(n.ID) {
+			continue
+		}
+		record := nodeToWire(n)
+		out.Nodes = append(out.Nodes, record)
+		if proto.Size(frame()) > maxFrame {
+			out.Nodes = out.Nodes[:len(out.Nodes)-1]
+			if len(out.Nodes) == 0 || !l.send(frame()) {
+				return false
+			}
+			out = &wire.Records{Nodes: []*wire.NodeRecord{record}}
+			if proto.Size(frame()) > maxFrame {
+				return false
+			}
 		}
 	}
-	if len(out.Nodes) == 0 {
-		return true
-	}
-	return l.send(&wire.Frame{Body: &wire.Frame_Records{Records: out}})
+	return len(out.Nodes) == 0 || l.send(frame())
 }
 
 func (l *link) receiveRecords(resp *wire.Records) bool {

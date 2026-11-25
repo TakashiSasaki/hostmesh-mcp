@@ -8,14 +8,22 @@ import (
 	"time"
 )
 
+// RecordProof travels with peer records and is stored separately from MCP output.
+type RecordProof struct {
+	Chain      [][]byte  `json:"chain"`
+	Signature  []byte    `json:"signature"`
+	ValidUntil time.Time `json:"-"`
+}
+
 type Node struct {
-	ID        string   `json:"node_id"`
-	Hostname  string   `json:"hostname"`
-	OS        string   `json:"os"`
-	Addresses []string `json:"addresses"`
-	Endpoints []string `json:"peer_endpoints,omitempty"`
-	Relay     bool     `json:"relay_enabled,omitempty"`
-	Revision  uint64   `json:"revision"`
+	Proof     *RecordProof `json:"-"`
+	ID        string       `json:"node_id"`
+	Hostname  string       `json:"hostname"`
+	OS        string       `json:"os"`
+	Addresses []string     `json:"addresses"`
+	Endpoints []string     `json:"peer_endpoints,omitempty"`
+	Relay     bool         `json:"relay_enabled,omitempty"`
+	Revision  uint64       `json:"revision"`
 }
 
 type Host struct {

@@ -72,7 +72,7 @@ func run(ctx context.Context, args []string) error {
 	if err != nil {
 		return err
 	}
-	store, err := state.Open(*dir, info)
+	store, err := state.OpenLocal(*dir, info)
 	if err != nil {
 		return err
 	}

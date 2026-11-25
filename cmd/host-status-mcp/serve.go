@@ -30,6 +30,9 @@ type config struct {
 }
 
 type peerConfig struct {
+	CAFile         string   `json:"ca_file,omitempty"`
+	CertFile       string   `json:"cert_file,omitempty"`
+	KeyFile        string   `json:"key_file,omitempty"`
 	Security       string   `json:"security"`
 	Listen         string   `json:"listen"`
 	Advertise      []string `json:"advertise"`
@@ -65,12 +68,19 @@ func readConfig(path string) (config, error) {
 	if c.MCPListen == "" && c.Peer.Listen == "" && len(c.Peer.Seeds) == 0 {
 		return c, fmt.Errorf("configure at least one MCP or peer endpoint")
 	}
+	if c.Peer.Security != "mtls" && (c.Peer.CAFile != "" || c.Peer.CertFile != "" || c.Peer.KeyFile != "") {
+		return c, fmt.Errorf("peer certificate settings require peer.security mtls")
+	}
 	switch c.Peer.Security {
 	case "":
 		if c.Peer.Listen != "" || len(c.Peer.Seeds) != 0 || len(c.Peer.Advertise) != 0 || c.Peer.Relay || len(c.Peer.TrustedRelays) != 0 {
-			return c, fmt.Errorf("configure peer.security as plaintext to enable peering")
+			return c, fmt.Errorf("configure peer.security as plaintext or mtls to enable peering")
 		}
 	case "plaintext":
+	case "mtls":
+		if c.Peer.CAFile == "" || c.Peer.CertFile == "" || c.Peer.KeyFile == "" {
+			return c, fmt.Errorf("mtls requires peer.ca_file, cert_file and key_file")
+		}
 	default:
 		return c, fmt.Errorf("unsupported peer.security %q", c.Peer.Security)
 	}
@@ -119,7 +129,16 @@ func serve(ctx context.Context, version string, c config) error {
 	if err != nil {
 		return err
 	}
-	dir, err := state.Open(c.StateDir, info)
+	var security *peer.PeerTLS
+	var trust state.RecordTrust
+	if c.Peer.Security == "mtls" {
+		security, err = peer.LoadPeerTLS(c.Peer.CAFile, c.Peer.CertFile, c.Peer.KeyFile)
+		if err != nil {
+			return err
+		}
+		trust = security
+	}
+	dir, err := state.OpenWithTrust(c.StateDir, info, trust)
 	if err != nil {
 		return err
 	}
@@ -143,7 +162,7 @@ func serve(ctx context.Context, version string, c config) error {
 		}
 		defer peerListener.Close()
 	}
-	p := peer.Start(ctx, peer.Config{Seeds: c.Peer.Seeds, DenyNodes: c.Peer.DenyNodes, TrustedRelays: c.Peer.TrustedRelays, HideInterfaceAddresses: !shareAddresses, Refresh: func() (bool, error) {
+	p := peer.Start(ctx, peer.Config{TLS: security, Seeds: c.Peer.Seeds, DenyNodes: c.Peer.DenyNodes, TrustedRelays: c.Peer.TrustedRelays, HideInterfaceAddresses: !shareAddresses, Refresh: func() (bool, error) {
 		info, err := readNode()
 		if err != nil {
 			return false, err

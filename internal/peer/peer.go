@@ -18,6 +18,7 @@ import (
 	wire "github.com/TakashiSasaki/host-status-mcp/proto/hoststatus/peer/v1"
 	"github.com/google/uuid"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 )
 
 const (
@@ -37,6 +38,7 @@ type Directory interface {
 }
 
 type Config struct {
+	TLS                    *PeerTLS
 	HideInterfaceAddresses bool
 	Seeds                  []string
 	DenyNodes              []string
@@ -82,7 +84,11 @@ func Start(ctx context.Context, cfg Config, listener net.Listener, dir Directory
 		seen: make(map[string]time.Time), seedIDs: make(map[string]string), dirty: make(chan struct{}, 1),
 	}
 	if listener != nil {
-		p.server = grpc.NewServer(grpc.MaxRecvMsgSize(maxFrame), grpc.MaxSendMsgSize(maxFrame), grpc.WaitForHandlers(true))
+		opts := []grpc.ServerOption{grpc.MaxRecvMsgSize(maxFrame), grpc.MaxSendMsgSize(maxFrame), grpc.WaitForHandlers(true)}
+		if cfg.TLS != nil {
+			opts = append(opts, grpc.Creds(credentials.NewTLS(cfg.TLS.transport(true))))
+		}
+		p.server = grpc.NewServer(opts...)
 		wire.RegisterPeeringServer(p.server, p)
 		p.wg.Go(func() {
 			if err := p.server.Serve(listener); err != nil && p.ctx.Err() == nil {
@@ -241,7 +247,11 @@ func validID(id string) bool {
 }
 
 func nodeToWire(n status.Node) *wire.NodeRecord {
-	return &wire.NodeRecord{Id: n.ID, Hostname: n.Hostname, Os: n.OS, Addresses: n.Addresses, Endpoints: n.Endpoints, Revision: n.Revision, Relay: n.Relay}
+	r := &wire.NodeRecord{Id: n.ID, Hostname: n.Hostname, Os: n.OS, Addresses: n.Addresses, Endpoints: n.Endpoints, Revision: n.Revision, Relay: n.Relay}
+	if n.Proof != nil {
+		r.CertChain, r.Signature = n.Proof.Chain, n.Proof.Signature
+	}
+	return r
 }
 
 func nodeFromWire(r *wire.NodeRecord) (status.Node, error) {
@@ -265,5 +275,9 @@ func nodeFromWire(r *wire.NodeRecord) (status.Node, error) {
 	}
 	slices.Sort(ips)
 	slices.Sort(endpoints)
-	return status.Node{ID: r.Id, Hostname: r.Hostname, OS: r.Os, Addresses: slices.Compact(ips), Endpoints: slices.Compact(endpoints), Revision: r.Revision, Relay: r.Relay}, nil
+	var proof *status.RecordProof
+	if len(r.CertChain) > 0 || len(r.Signature) > 0 {
+		proof = &status.RecordProof{Chain: r.CertChain, Signature: r.Signature}
+	}
+	return status.Node{Proof: proof, ID: r.Id, Hostname: r.Hostname, OS: r.Os, Addresses: slices.Compact(ips), Endpoints: slices.Compact(endpoints), Revision: r.Revision, Relay: r.Relay}, nil
 }

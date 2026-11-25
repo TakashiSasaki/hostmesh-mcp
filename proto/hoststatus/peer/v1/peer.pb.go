@@ -292,6 +292,8 @@ type NodeRecord struct {
 	Endpoints     []string               `protobuf:"bytes,5,rep,name=endpoints,proto3" json:"endpoints,omitempty"`
 	Relay         bool                   `protobuf:"varint,6,opt,name=relay,proto3" json:"relay,omitempty"`
 	Revision      uint64                 `protobuf:"varint,7,opt,name=revision,proto3" json:"revision,omitempty"`
+	CertChain     [][]byte               `protobuf:"bytes,8,rep,name=cert_chain,json=certChain,proto3" json:"cert_chain,omitempty"`
+	Signature     []byte                 `protobuf:"bytes,9,opt,name=signature,proto3" json:"signature,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -373,6 +375,20 @@ func (x *NodeRecord) GetRevision() uint64 {
 		return x.Revision
 	}
 	return 0
+}
+
+func (x *NodeRecord) GetCertChain() [][]byte {
+	if x != nil {
+		return x.CertChain
+	}
+	return nil
+}
+
+func (x *NodeRecord) GetSignature() []byte {
+	if x != nil {
+		return x.Signature
+	}
+	return nil
 }
 
 type Heartbeat struct {
@@ -865,7 +881,7 @@ const file_proto_hoststatus_peer_v1_peer_proto_rawDesc = "" +
 	"\aversion\x18\x01 \x01(\rR\aversion\x12\x17\n" +
 	"\alink_id\x18\x02 \x01(\tR\x06linkId\x122\n" +
 	"\x04node\x18\x03 \x01(\v2\x1e.hoststatus.peer.v1.NodeRecordR\x04node\x12\x1a\n" +
-	"\bsections\x18\x04 \x03(\tR\bsections\"\xb6\x01\n" +
+	"\bsections\x18\x04 \x03(\tR\bsections\"\xf3\x01\n" +
 	"\n" +
 	"NodeRecord\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1a\n" +
@@ -874,7 +890,10 @@ const file_proto_hoststatus_peer_v1_peer_proto_rawDesc = "" +
 	"\taddresses\x18\x04 \x03(\tR\taddresses\x12\x1c\n" +
 	"\tendpoints\x18\x05 \x03(\tR\tendpoints\x12\x14\n" +
 	"\x05relay\x18\x06 \x01(\bR\x05relay\x12\x1a\n" +
-	"\brevision\x18\a \x01(\x04R\brevision\"\v\n" +
+	"\brevision\x18\a \x01(\x04R\brevision\x12\x1d\n" +
+	"\n" +
+	"cert_chain\x18\b \x03(\fR\tcertChain\x12\x1c\n" +
+	"\tsignature\x18\t \x01(\fR\tsignature\"\v\n" +
 	"\tHeartbeat\"\x94\x01\n" +
 	"\rStatusRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1b\n" +

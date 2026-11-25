@@ -24,7 +24,10 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-func TestDockerRelay(t *testing.T) {
+func TestDockerRelay(t *testing.T)     { testDockerRelay(t, false) }
+func TestDockerMTLSRelay(t *testing.T) { testDockerRelay(t, true) }
+
+func testDockerRelay(t *testing.T, mtls bool) {
 	if os.Getenv("HOST_STATUS_DOCKER_TEST") != "1" {
 		t.Skip("set HOST_STATUS_DOCKER_TEST=1 to use the local Docker daemon")
 	}
@@ -93,6 +96,10 @@ func TestDockerRelay(t *testing.T) {
 		t.Cleanup(func() { remove("network", "rm", network) })
 	}
 
+	var ca testCA
+	if mtls {
+		ca = newTestCA(t)
+	}
 	start := func(name, network string, cfg config) {
 		t.Helper()
 		dir := filepath.Join(root, name)
@@ -100,6 +107,20 @@ func TestDockerRelay(t *testing.T) {
 			t.Fatal(err)
 		}
 		cfg.StateDir = "/state"
+		if mtls {
+			files := ca.issue(t, uuid.NewString(), time.Now().Add(time.Hour), name)
+			for filename, source := range map[string]string{"ca.pem": files.CAFile, "node.pem": files.CertFile, "node.key": files.KeyFile} {
+				data, err := os.ReadFile(source)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(filepath.Join(dir, filename), data, 0600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			cfg.Peer.Security = "mtls"
+			cfg.Peer.CAFile, cfg.Peer.CertFile, cfg.Peer.KeyFile = "/state/ca.pem", "/state/node.pem", "/state/node.key"
+		}
 		data, err := json.Marshal(cfg)
 		if err != nil {
 			t.Fatal(err)
