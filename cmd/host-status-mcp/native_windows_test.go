@@ -36,7 +36,7 @@ func TestWindowsNative(t *testing.T) {
 	a := startServeProcess(t, config{Peer: entry, MCPListen: "127.0.0.1:0", AllowProcessKill: true})
 	edge := ca.issue(t, uuid.NewString(), time.Now().Add(time.Hour))
 	edge.Seeds = []string{a.peer}
-	b := startServeProcess(t, config{Peer: edge})
+	b := startServeProcess(t, config{Peer: edge, Filesystems: []string{defaultFilesystemRoot()}})
 	client := mcp.NewClient(&mcp.Implementation{Name: "windows-test", Version: "1"}, nil)
 	s, err := client.Connect(ctx, &mcp.StreamableClientTransport{Endpoint: a.mcp}, nil)
 	if err != nil {
