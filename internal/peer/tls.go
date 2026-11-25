@@ -25,7 +25,7 @@ type PeerTLS struct {
 	validUntil time.Time
 }
 
-func certificateID(c *x509.Certificate) (string, error) {
+func CertificateNodeID(c *x509.Certificate) (string, error) {
 	const prefix = "urn:host-status-mcp:node:"
 	var id string
 	for _, uri := range c.URIs {
@@ -71,7 +71,7 @@ func LoadPeerTLS(ca, cert, key string) (*PeerTLS, error) {
 	if err != nil {
 		return nil, err
 	}
-	id, err := certificateID(leaf)
+	id, err := CertificateNodeID(leaf)
 	if err != nil {
 		return nil, err
 	}
@@ -100,7 +100,7 @@ func (s *PeerTLS) transport(server bool) *tls.Config {
 		if !slices.Contains(leaf.ExtKeyUsage, role) {
 			return fmt.Errorf("missing node certificate extended key usage")
 		}
-		_, err := certificateID(leaf)
+		_, err := CertificateNodeID(leaf)
 		return err
 	}
 	return cfg
@@ -128,7 +128,7 @@ func (s *PeerTLS) verifyChain(raw [][]byte, id string) (*x509.Certificate, time.
 	if !slices.Contains(leaf.ExtKeyUsage, x509.ExtKeyUsageClientAuth) && !slices.Contains(leaf.ExtKeyUsage, x509.ExtKeyUsageServerAuth) {
 		return nil, time.Time{}, fmt.Errorf("node certificate requires clientAuth or serverAuth")
 	}
-	certID, err := certificateID(leaf)
+	certID, err := CertificateNodeID(leaf)
 	if err != nil || certID != id {
 		return nil, time.Time{}, fmt.Errorf("certificate node ID mismatch")
 	}

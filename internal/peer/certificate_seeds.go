@@ -2,6 +2,7 @@ package peer
 
 import (
 	"crypto/x509"
+	"crypto/x509/pkix"
 	"encoding/asn1"
 	"fmt"
 	"strings"
@@ -45,4 +46,18 @@ func certificateSeeds(leaf *x509.Certificate) ([]string, error) {
 
 func (s *PeerTLS) LocalCertificate() *x509.Certificate {
 	return s.config.Certificates[0].Leaf
+}
+
+// BootstrapSeedExtension encodes the optional CA-approved discovery addresses.
+func BootstrapSeedExtension(seeds []string) (pkix.Extension, error) {
+	if len(seeds) == 0 || len(seeds) > MaxSeeds {
+		return pkix.Extension{}, fmt.Errorf("expected 1 to %d bootstrap seeds", MaxSeeds)
+	}
+	for _, seed := range seeds {
+		if !ValidEndpoint(seed) || strings.Contains(seed, ",") {
+			return pkix.Extension{}, fmt.Errorf("invalid bootstrap seed %q", seed)
+		}
+	}
+	der, err := asn1.MarshalWithParams(strings.Join(seeds, ","), "utf8")
+	return pkix.Extension{Id: seedExtensionOID, Value: der}, err
 }

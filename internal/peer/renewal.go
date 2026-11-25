@@ -213,7 +213,7 @@ func (s *PeerTLS) renewedChain(certs []*x509.Certificate) ([]byte, error) {
 	if leaf == nil {
 		return nil, errors.New("missing EST leaf")
 	}
-	id, err := certificateID(leaf)
+	id, err := CertificateNodeID(leaf)
 	if err != nil || id != s.id || !leaf.NotAfter.After(old.NotAfter) {
 		return nil, errors.New("renewal must preserve node ID and extend certificate validity")
 	}

@@ -106,8 +106,10 @@ go test -count=1 -v ./cmd/host-status-mcp -run '^TestSystemdUpdate$'
 
 `TestMeshCertificateRenewal` は独立したピアプロセスとテスト用 EST 発行局を使う。更新元と出口の両方から中継へ接続し、CA が受け取った mTLS 識別子・CSR 署名・公開鍵を検査する。許可したノードだけで同じ鍵の新証明書が有効になり、失効扱いのノードには発行しないことを確認する。
 
-`TestDockerMeshCertificateRenewal` は Linux の独立した内部ネットワークを 2 つ作る。中継だけが両ネットワークに参加し、CA は出口側ネットワーク名前空間のループバックで待ち受ける。各ノードから TCP 到達性を検査し、更新元から出口・CA への直接接続ができない状態で、自動更新、鍵の維持、同じ MCP URL の新証明書、メッシュ経由の状態照会を検証する。専用イメージ、コンテナ、ネットワークはテスト後に削除する。
+`TestDockerMeshCertificateRenewal` は Linux の独立した内部ネットワークを 2 つ作る。中継だけが両ネットワークに参加し、実バイナリの `ca serve` を出口側のネットワーク名前空間で独立したコンテナとして起動する。ルート秘密鍵はコンテナに渡さず、署名用中間 CA と登録台帳を使う。各ノードから TCP 到達性を検査し、更新元から出口・CA への直接接続ができない状態で、自動更新、鍵の維持、同じ MCP URL の新証明書、メッシュ経由の状態照会を検証する。専用イメージ、コンテナ、ネットワークはテスト後に削除する。
 
 ```sh
 HOST_STATUS_DOCKER_TEST=1 go test -count=1 -v ./cmd/host-status-mcp -run '^TestDockerMeshCertificateRenewal$'
 ```
+
+`TestAuthorityLifecycle` はローカル CLI と実際の TLS 接続で、登録済みの ID と鍵、承認した名前とシード、異なる鍵や不正な署名の拒否、同一鍵の複数世代の失効、CA 再起動後の失効維持、手動の新鍵登録を検証する。

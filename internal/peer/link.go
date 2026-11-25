@@ -136,7 +136,7 @@ func (p *Peer) runStream(s stream, id, expectedID, seed string, established func
 			return false
 		}
 		chain := info.State.VerifiedChains[0]
-		certID, err := certificateID(chain[0])
+		certID, err := CertificateNodeID(chain[0])
 		if err != nil || certID != n.ID {
 			return false
 		}

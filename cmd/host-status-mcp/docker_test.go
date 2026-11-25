@@ -214,15 +214,17 @@ func testDockerRelay(t *testing.T, mtls, renewal bool) {
 		if err := os.Mkdir(issuerDir, 0700); err != nil {
 			t.Fatal(err)
 		}
-		fixtureESTFiles(t, issuerDir, ca)
+		caPath := fixtureAuthority(t, issuerDir, ca, "127.0.0.1:9443")
 		originalKey := readFile(t, filepath.Join(root, a, "node.key"))
 		originalCert := readFile(t, filepath.Join(root, a, "node.pem"))
 		originID := nodeID(a)
+		approvePeer(t, caPath, peerConfig{CertFile: filepath.Join(root, a, "node.pem"), KeyFile: filepath.Join(root, a, "node.key")}, originID, []string{a}, nil)
 		issuer := prefix + "-issuer"
 		run("docker", "run", "-d", "--pull=never", "--name", issuer, "--network", "container:"+b,
 			"--user", fmt.Sprintf("%d:%d", os.Getuid(), os.Getgid()), "--cap-drop=ALL", "--read-only",
-			"--mount", "type=bind,source="+issuerDir+",destination=/issuer,readonly", "--env", "HOST_STATUS_FIXTURE_CA=1",
-			"--entrypoint", "/probe", image, "-test.run=^TestDockerRenewalCA$")
+			"--mount", "type=bind,source="+issuerDir+",destination=/issuer,readonly",
+			"--mount", "type=bind,source="+filepath.Join(issuerDir, "state")+",destination=/issuer/state",
+			image, "ca", "serve", "-config", "/issuer/ca.json")
 		t.Cleanup(func() { remove("container", "rm", "-f", issuer) })
 		probe(b, "tcp-open", "127.0.0.1:9443")
 		probe(a, "tcp-blocked", "127.0.0.1:9443")

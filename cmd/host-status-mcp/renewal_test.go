@@ -13,7 +13,7 @@ import (
 	"fmt"
 	"io"
 	"math/big"
-	"net"
+
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -94,13 +94,11 @@ func fixtureESTFiles(t *testing.T, dir string, ca testCA) {
 	}
 	write("root.pem", root)
 	write("server.pem", pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der}))
-	for name, k := range map[string]ed25519.PrivateKey{"root.key": ca.key, "server.key": key} {
-		der, err := x509.MarshalPKCS8PrivateKey(k)
-		if err != nil {
-			t.Fatal(err)
-		}
-		write(name, pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: der}))
+	der, err = x509.MarshalPKCS8PrivateKey(key)
+	if err != nil {
+		t.Fatal(err)
 	}
+	write("server.key", pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: der}))
 }
 
 func readFile(t *testing.T, path string) []byte {
@@ -200,41 +198,14 @@ func checkRenewedService(t *testing.T, endpoint, id string, cert []byte) {
 			}
 			err = toolResult(ctx, s, "server_config", map[string]any{"include_certificate": true}, &config)
 			s.Close()
-			if err == nil && config.NodeID == id && config.Certificate.PEM == string(cert) {
+			block, _ := pem.Decode(cert)
+			if err == nil && config.NodeID == id && block != nil && config.Certificate.PEM == string(pem.EncodeToMemory(block)) {
 				return
 			}
 		}
 		time.Sleep(50 * time.Millisecond)
 	}
 	t.Fatalf("renewed certificate not active on %s for %s", endpoint, id)
-}
-
-// Docker fixture runs in the gateway network namespace with its own private
-// mount. Only this process receives the test CA key.
-func TestDockerRenewalCA(t *testing.T) {
-	if os.Getenv("HOST_STATUS_FIXTURE_CA") != "1" {
-		t.Skip("Docker EST fixture")
-	}
-	const dir = "/issuer"
-	root, _ := pem.Decode(readFile(t, dir+"/root.pem"))
-	key, _ := pem.Decode(readFile(t, dir+"/root.key"))
-	cert, err := x509.ParseCertificate(root.Bytes)
-	if err != nil {
-		t.Fatal(err)
-	}
-	sk, err := x509.ParsePKCS8PrivateKey(key.Bytes)
-	if err != nil {
-		t.Fatal(err)
-	}
-	issuer := testCA{cert: cert, key: sk.(ed25519.PrivateKey)}
-	srv := http.Server{Handler: fixtureEST(issuer, func(c *x509.Certificate) bool {
-		return len(c.URIs) == 1 && strings.HasPrefix(c.URIs[0].String(), "urn:host-status-mcp:node:")
-	}), TLSConfig: estServerTLS(t, dir), ReadHeaderTimeout: 3 * time.Second}
-	l, err := net.Listen("tcp", "127.0.0.1:9443")
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Fatal(srv.ServeTLS(l, "", ""))
 }
 
 func TestRenewalConfiguration(t *testing.T) {
