@@ -12,6 +12,21 @@ go build -o host-status-mcp ./cmd/host-status-mcp
 
 MCP クライアントのコマンド設定では、実行ファイルへの絶対パスと引数 `stdio` を指定する。既定の状態ディレクトリは `os.UserConfigDir()` 配下の `host-status-mcp/state`。同じマシンで複数ノードを動かすときは、ノードごとに `-state-dir` または設定の `state_dir` を指定する。
 
+## ピア設定のひな型を出力する
+
+`config example` は編集用の JSON を標準出力に表示する。
+
+```sh
+./host-status-mcp config example                     # 待ち受けるピア
+./host-status-mcp config example -join               # 既存のピアに発信するノード
+./host-status-mcp config example -mtls               # mTLS で待ち受けるピア
+./host-status-mcp config example -join -mtls > b.json
+```
+
+例のアドレスは `127.0.0.1:7443`。別ホスト間で使うときは、待ち受け側の `listen` に自分の閉域アドレス、`advertise` と参加側の `seeds` に参加側から到達できる待ち受け先を指定する。`-mtls` は CA 証明書・ノード証明書・秘密鍵のパスを追加する。各ノードのファイルに合わせて編集し、`./host-status-mcp serve -config b.json` で起動する。各項目の意味は `./host-status-mcp config example -help` でも確認できる。
+
+同じホスト上で両方のひな型を使う場合は、次の例のようにノードごとに異なる `state_dir` を指定し、参加側で `"mcp_listen": ""` または別のループバックポートを設定する。
+
 ## 2 台を接続する
 
 A の設定 `a.json` の例。

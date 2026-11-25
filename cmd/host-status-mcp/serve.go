@@ -34,13 +34,13 @@ type peerConfig struct {
 	CertFile       string   `json:"cert_file,omitempty"`
 	KeyFile        string   `json:"key_file,omitempty"`
 	Security       string   `json:"security,omitempty"`
-	Listen         string   `json:"listen"`
-	Advertise      []string `json:"advertise"`
-	Seeds          []string `json:"seeds"`
-	ShareAddresses *bool    `json:"share_addresses"`
-	Relay          bool     `json:"relay"`
-	TrustedRelays  []string `json:"trusted_relays"`
-	DenyNodes      []string `json:"deny_nodes"`
+	Listen         string   `json:"listen,omitempty"`
+	Advertise      []string `json:"advertise,omitempty"`
+	Seeds          []string `json:"seeds,omitempty"`
+	ShareAddresses *bool    `json:"share_addresses,omitempty"`
+	Relay          bool     `json:"relay,omitempty"`
+	TrustedRelays  []string `json:"trusted_relays,omitempty"`
+	DenyNodes      []string `json:"deny_nodes,omitempty"`
 }
 
 func readConfig(path string) (config, error) {

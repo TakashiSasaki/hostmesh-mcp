@@ -35,6 +35,12 @@ func run(ctx context.Context, args []string) error {
 		fmt.Println(version)
 		return nil
 	}
+	if len(args) > 0 && args[0] == "config" {
+		if len(args) < 2 || args[1] != "example" {
+			return fmt.Errorf("usage: host-status-mcp config example [-join] [-mtls]")
+		}
+		return configExample(args[2:], os.Stdout)
+	}
 	if len(args) > 0 && args[0] == "serve" {
 		flags := flag.NewFlagSet("serve", flag.ContinueOnError)
 		path := flags.String("config", "", "JSON configuration file")
@@ -42,7 +48,7 @@ func run(ctx context.Context, args []string) error {
 			return err
 		}
 		if *path == "" || flags.NArg() != 0 {
-			return fmt.Errorf("usage: host-status-mcp serve -config <path>")
+			return fmt.Errorf("usage: host-status-mcp serve -config <path>\nGenerate a template with: host-status-mcp config example > peer.json")
 		}
 		cfg, err := readConfig(*path)
 		if err != nil {
@@ -51,7 +57,7 @@ func run(ctx context.Context, args []string) error {
 		return serve(ctx, version, cfg)
 	}
 	if len(args) == 0 || args[0] != "stdio" {
-		return fmt.Errorf("usage: host-status-mcp version | stdio [-state-dir directory] | serve -config <path>")
+		return fmt.Errorf("usage: host-status-mcp version | stdio [-state-dir directory] | serve -config <path> | config example [-join] [-mtls]")
 	}
 	flags := flag.NewFlagSet("stdio", flag.ContinueOnError)
 	dir := flags.String("state-dir", "", "persistent state directory")
