@@ -6,7 +6,17 @@ macOS 版は Apple Silicon と Intel に対応する。`stdio` と `serve` の�
 
 Windows 版は Windows ホスト上で動く読み取り専用の `hostmesh-mcp.exe`。プロセスの CPU 使用率とワーキングセット、物理メモリ、実際のページファイル別使用量（`swap.page_files`）、システムドライブなどを取得する。
 
-[インストールガイド（Linux・macOS・Windows）](INSTALL.md)
+## 使い方
+
+| やりたいこと | 最初に開く手順 |
+| --- | --- |
+| Linux・macOS・Windows に導入する、旧版の台帳を移す | [インストールと移行](INSTALL.md) |
+| MCP クライアントでこのホストを監視する | [ローカル監視用の STDIO 接続](#ビルドと単体起動)・[監視ツールと入力例](#状態照会) |
+| 1 台の MCP エンドポイント経由で別ホストも監視する | [2 台の設定と初めてのリモート照会](#2-台を接続する)・[ピア間の mTLS](#ピア間の-mtls) |
+| **管理者が手動で運用する** | [CLI 管理ガイド](OPERATIONS.md)（設定、起動・停止、証明書、常駐・更新） |
+| **エージェントに管理を任せる** | [エージェント管理ガイド](ADMIN.md)（管理 MCP の接続設定、シェル経由の操作、依頼例） |
+| CA を立てて参加申請を承認・失効する | [CA ホストと参加ピアで行う手順](CA.md) |
+| Linux ピアを自動更新する | [systemd または supervise による常駐・更新](UPDATING.md) |
 
 Linux ARM64 での常駐メモリの目安は、v0.0.35 の実測で mTLS ピア 1 プロセスが約 22 MiB、CA とピアを同じホストで別々に起動すると合計約 30 MiB。Linux の自動更新用に `supervise` でピアを起動すると親子合計で約 46 MiB。いずれも共有ページを按分した値（PSS）。[構成別の実測値と測定条件](TESTING.md#linux-arm64-の常駐メモリ)
 
@@ -27,6 +37,8 @@ go build -o hostmesh-mcp ./cmd/hostmesh-mcp
 ```
 
 MCP クライアントのコマンド設定では、実行ファイルへの絶対パスと引数 `stdio` を指定する。`state.json` と `state.lock` の既定の保存先は、OS のユーザー設定ディレクトリ配下の `hostmesh-mcp/state`。同じマシンで複数ノードを動かすときは、ノードごとに `stdio -state-dir` またはピア設定の `state_dir` を指定する。[OS 別のパスと既存台帳の移行方法](INSTALL.md#既存環境からの更新)
+
+クライアントが接続したら、`server_version` に `{}` を渡すとサーバー名と版を確認できる。次に `host_status` に `{"sections":["memory"]}` を渡すと、このホストのメモリを取得できる。
 
 ## ピア設定のひな型を出力する
 
