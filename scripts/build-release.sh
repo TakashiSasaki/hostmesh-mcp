@@ -30,7 +30,7 @@ for arch in ("amd64", "arm64"):
         "size": binary.stat().st_size,
         "sha256": hashlib.sha256(binary.read_bytes()).hexdigest(),
     }
-manifest = {"product": "host-status-mcp", "version": version, "artifacts": artifacts}
+manifest = {"product": "hostmesh-mcp", "version": version, "artifacts": artifacts}
 (directory / "release.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
 PY
 openssl pkeyutl -sign -rawin -inkey "$key" -in "$out/release.json" -out "$out/release.json.sig"

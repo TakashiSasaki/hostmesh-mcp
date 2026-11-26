@@ -136,8 +136,8 @@ func (d *memoryDirectory) Merge(records []status.Node) (bool, []string, error) {
 }
 
 func TestMesh100(t *testing.T) {
-	if os.Getenv("HOST_STATUS_SCALE_TEST") != "1" {
-		t.Skip("set HOST_STATUS_SCALE_TEST=1 for the 100-node test")
+	if os.Getenv("HOSTMESH_MCP_SCALE_TEST") != "1" {
+		t.Skip("set HOSTMESH_MCP_SCALE_TEST=1 for the 100-node test")
 	}
 	t.Run("full-mesh", func(t *testing.T) { runScale(t, false) })
 	t.Run("single-relay", func(t *testing.T) { runScale(t, true) })

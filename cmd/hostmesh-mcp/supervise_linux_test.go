@@ -21,7 +21,7 @@ import (
 // The test executable is the shebang interpreter of the signed faulty candidate.
 // This also works in a scratch container with no shell or utilities.
 func TestFaultCandidate(t *testing.T) {
-	if os.Getenv("HOST_STATUS_SUPERVISE_FIXTURE") != "1" || len(os.Args) < 4 {
+	if os.Getenv("HOSTMESH_MCP_SUPERVISE_FIXTURE") != "1" || len(os.Args) < 4 {
 		return
 	}
 	switch os.Args[3] {
@@ -46,10 +46,10 @@ func TestFaultCandidate(t *testing.T) {
 }
 
 func TestSupervisedUpdate(t *testing.T) {
-	if os.Getenv("HOST_STATUS_SUPERVISE_TEST") != "1" {
+	if os.Getenv("HOSTMESH_MCP_SUPERVISE_TEST") != "1" {
 		t.Skip("opt-in standalone supervisor integration")
 	}
-	old, supervisor := os.Getenv("HOST_STATUS_PREVIOUS_BINARY"), os.Getenv("HOST_STATUS_TEST_BINARY")
+	old, supervisor := os.Getenv("HOSTMESH_MCP_PREVIOUS_BINARY"), os.Getenv("HOSTMESH_MCP_TEST_BINARY")
 	read := func(path string) []byte {
 		t.Helper()
 		b, err := os.ReadFile(path)
@@ -138,7 +138,7 @@ func TestSupervisedUpdate(t *testing.T) {
 		defer logFile.Close()
 		cmd = exec.Command(supervisor, "supervise", "-config", settings)
 		cmd.Stdout, cmd.Stderr = logFile, logFile
-		cmd.Env = append(os.Environ(), "HOST_STATUS_SUPERVISE_FIXTURE=1")
+		cmd.Env = append(os.Environ(), "HOSTMESH_MCP_SUPERVISE_FIXTURE=1")
 		if err := cmd.Start(); err != nil {
 			t.Fatal(err)
 		}

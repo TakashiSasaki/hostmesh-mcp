@@ -35,7 +35,7 @@ hostmesh-mcp ca serve -config mesh-ca/online/ca.json
 ```sh
 umask 077
 openssl genpkey -algorithm EC -pkeyopt ec_paramgen_curve:P-256 -out issuer.key
-openssl req -new -key issuer.key -subj '/CN=Host Status Issuing CA' -out issuer.csr
+openssl req -new -key issuer.key -subj '/CN=hostmesh-mcp Issuing CA' -out issuer.csr
 openssl genpkey -algorithm EC -pkeyopt ec_paramgen_curve:P-256 -out est.key
 openssl req -new -key est.key -subj '/CN=ca.example.internal' -out est.csr
 ```

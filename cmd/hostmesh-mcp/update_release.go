@@ -23,6 +23,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/TakashiSasaki/hostmesh-mcp/internal/product"
 )
 
 type updateSettings struct {
@@ -217,7 +219,7 @@ func loadRelease(ctx context.Context, c updateSettings) (string, releaseArtifact
 	if err := decodeUpdateJSON(manifest.Bytes(), &m); err != nil {
 		return "", a, err
 	}
-	if m.Product != "host-status-mcp" {
+	if m.Product != product.Name && m.Product != product.LegacyName {
 		return "", a, errors.New("unexpected release product")
 	}
 	if _, err := releaseVersion(m.Version); err != nil {

@@ -20,14 +20,14 @@ jobs:
         run: CGO_ENABLED=0 go build -trimpath -o "$RUNNER_TEMP/hostmesh-mcp" ./cmd/hostmesh-mcp
       - name: Test with the native executable
         if: runner.os != 'Windows'
-        run: HOST_STATUS_TEST_BINARY="$RUNNER_TEMP/hostmesh-mcp" go test -count=1 ./...
+        run: HOSTMESH_MCP_TEST_BINARY="$RUNNER_TEMP/hostmesh-mcp" go test -count=1 ./...
       - name: Build and test Windows x64 peer
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
           $env:CGO_ENABLED = '0'
-          $env:HOST_STATUS_TEST_BINARY = "$env:RUNNER_TEMP/hostmesh-mcp.exe"
-          go build -trimpath -o $env:HOST_STATUS_TEST_BINARY ./cmd/hostmesh-mcp
+          $env:HOSTMESH_MCP_TEST_BINARY = "$env:RUNNER_TEMP/hostmesh-mcp.exe"
+          go build -trimpath -o $env:HOSTMESH_MCP_TEST_BINARY ./cmd/hostmesh-mcp
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           go test -count=1 ./...
       - name: Test Windows monitoring as a standard user

@@ -132,10 +132,8 @@ func (p *Peer) renew(ctx context.Context, csr string) (time.Duration, error) {
 	// An authenticated mesh member must not impersonate the EST service, even
 	// where multiple certificates carry the same host/IP SAN.
 	cfg.VerifyConnection = func(cs tls.ConnectionState) error {
-		for _, uri := range cs.PeerCertificates[0].URIs {
-			if strings.HasPrefix(uri.String(), "urn:host-status-mcp:node:") {
-				return errors.New("EST server presented a peer identity")
-			}
+		if HasNodeURI(cs.PeerCertificates[0]) {
+			return errors.New("EST server presented a peer identity")
 		}
 		return nil
 	}

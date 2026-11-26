@@ -134,10 +134,10 @@ func TestMeshCertificateRenewal(t *testing.T) {
 			return false
 		}
 		switch c.URIs[0].Opaque {
-		case "host-status-mcp:node:" + allowedID:
+		case "hostmesh-mcp:node:" + allowedID:
 			issued.Add(1)
 			return true
-		case "host-status-mcp:node:" + revokedID:
+		case "hostmesh-mcp:node:" + revokedID:
 			refused.Add(1)
 		}
 		return false

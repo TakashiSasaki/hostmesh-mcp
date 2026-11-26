@@ -18,8 +18,8 @@ try {
 @echo off
 set "TEMP=%~dp0"
 set "TMP=%~dp0"
-set "HOST_STATUS_TEST_BINARY=%~dp0hostmesh-mcp.exe"
-set "HOST_STATUS_STANDARD_USER=1"
+set "HOSTMESH_MCP_TEST_BINARY=%~dp0hostmesh-mcp.exe"
+set "HOSTMESH_MCP_STANDARD_USER=1"
 "%~dp0probe.exe" -test.v -test.run "^Test(WindowsNative|Stdio|CABootstrap|PeerCSR)$" > "%~dp0result.log" 2>&1
 exit /b %errorlevel%
 '@ | Set-Content "$work/run.cmd" -Encoding ascii

@@ -41,7 +41,7 @@ func TestRenewedCertificateValidation(t *testing.T) {
 		t.Fatal(err)
 	}
 	id := uuid.NewString()
-	uri, _ := url.Parse("urn:host-status-mcp:node:" + id)
+	uri, _ := url.Parse("urn:hostmesh-mcp:node:" + id)
 	seeds, err := asn1.MarshalWithParams("peer.test:7443", "utf8")
 	if err != nil {
 		t.Fatal(err)
@@ -58,7 +58,7 @@ func TestRenewedCertificateValidation(t *testing.T) {
 		{"valid", nil, nodePub},
 		{"different key", nil, pub},
 		{"foreign identity", func(c *x509.Certificate) {
-			u, _ := url.Parse("urn:host-status-mcp:node:" + uuid.NewString())
+			u, _ := url.Parse("urn:hostmesh-mcp:node:" + uuid.NewString())
 			c.URIs = []*url.URL{u}
 		}, nodePub},
 		{"short validity", func(c *x509.Certificate) { c.NotAfter = old.NotAfter }, nodePub},

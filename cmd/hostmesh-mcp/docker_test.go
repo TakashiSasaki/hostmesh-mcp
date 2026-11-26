@@ -34,8 +34,8 @@ func TestDockerMTLSRelay(t *testing.T) { testDockerRelay(t, true, false) }
 func TestDockerMeshCertificateRenewal(t *testing.T) { testDockerRelay(t, true, true) }
 
 func testDockerRelay(t *testing.T, mtls, renewal bool) {
-	if os.Getenv("HOST_STATUS_DOCKER_TEST") != "1" {
-		t.Skip("set HOST_STATUS_DOCKER_TEST=1 to use the local Docker daemon")
+	if os.Getenv("HOSTMESH_MCP_DOCKER_TEST") != "1" {
+		t.Skip("set HOSTMESH_MCP_DOCKER_TEST=1 to use the local Docker daemon")
 	}
 	ctx, cancel := context.WithTimeout(t.Context(), 4*time.Minute)
 	defer cancel()
@@ -83,7 +83,7 @@ func testDockerRelay(t *testing.T, mtls, renewal bool) {
 		t.Fatal(err)
 	}
 
-	prefix := "host-status-lab-" + uuid.NewString()[:12]
+	prefix := "hostmesh-mcp-lab-" + uuid.NewString()[:12]
 	image, left, right := prefix+":test", prefix+"-left", prefix+"-right"
 	a, b, c := prefix+"-a", prefix+"-b", prefix+"-c"
 	remove := func(args ...string) {

@@ -11,9 +11,9 @@
   "mcpServers": {
     "hostmesh-admin": {
       "command": "/usr/local/bin/hostmesh-mcp",
-      "args": ["mcp", "-peer-config", "/etc/hostmesh/peer.json",
-               "-ca-config", "/etc/hostmesh/mesh-ca/online/ca.json",
-               "-update-config", "/etc/hostmesh/updater.json"]
+      "args": ["mcp", "-peer-config", "/etc/hostmesh-mcp/peer.json",
+               "-ca-config", "/etc/hostmesh-mcp/mesh-ca/online/ca.json",
+               "-update-config", "/etc/hostmesh-mcp/updater.json"]
     }
   }
 }
@@ -41,7 +41,7 @@ Windows は `command` に `hostmesh-mcp.exe` のパスを指定する。引数�
 ```sh
 hostmesh-mcp admin list
 hostmesh-mcp admin describe ca_enroll
-hostmesh-mcp admin -peer-config /etc/hostmesh/peer.json call config_check '{"kind":"peer"}'
+hostmesh-mcp admin -peer-config /etc/hostmesh-mcp/peer.json call config_check '{"kind":"peer"}'
 ```
 
 ## 登録と設定の受け渡し

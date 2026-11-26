@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/TakashiSasaki/hostmesh-mcp/internal/product"
 	"github.com/TakashiSasaki/hostmesh-mcp/internal/status"
 	"google.golang.org/protobuf/proto"
 )
@@ -25,11 +26,30 @@ type PeerTLS struct {
 	validUntil time.Time
 }
 
+const NodeURIPrefix = "urn:" + product.Name + ":node:"
+
+func nodeURIValue(uri string) (string, bool) {
+	if id, ok := strings.CutPrefix(uri, NodeURIPrefix); ok {
+		return id, true
+	}
+	return strings.CutPrefix(uri, "urn:"+product.LegacyName+":node:")
+}
+
+// HasNodeURI also detects malformed or ambiguous peer identities. An EST
+// server certificate must be rejected if it carries either peer namespace.
+func HasNodeURI(c *x509.Certificate) bool {
+	for _, uri := range c.URIs {
+		if _, ok := nodeURIValue(uri.String()); ok {
+			return true
+		}
+	}
+	return false
+}
+
 func CertificateNodeID(c *x509.Certificate) (string, error) {
-	const prefix = "urn:host-status-mcp:node:"
 	var id string
 	for _, uri := range c.URIs {
-		value, ok := strings.CutPrefix(uri.String(), prefix)
+		value, ok := nodeURIValue(uri.String())
 		if !ok {
 			continue
 		}
@@ -39,7 +59,7 @@ func CertificateNodeID(c *x509.Certificate) (string, error) {
 		id = value
 	}
 	if id == "" || c.IsCA {
-		return "", fmt.Errorf("expected a node leaf certificate with URI SAN %s<node_id>", prefix)
+		return "", fmt.Errorf("expected a node leaf certificate with URI SAN %s<node_id>", NodeURIPrefix)
 	}
 	return id, nil
 }
@@ -146,7 +166,8 @@ func recordBytes(n status.Node) []byte {
 	if err != nil {
 		return nil
 	}
-	return append([]byte("host-status-mcp:record:v1\x00"), payload...)
+	// This signature domain is part of the v1 wire protocol.
+	return append([]byte(product.LegacyName+":record:v1\x00"), payload...)
 }
 
 func (s *PeerTLS) Sign(n status.Node) (*status.RecordProof, error) {

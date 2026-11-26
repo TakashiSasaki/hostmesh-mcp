@@ -17,6 +17,7 @@ import (
 
 	"github.com/TakashiSasaki/hostmesh-mcp/internal/mcpserver"
 	"github.com/TakashiSasaki/hostmesh-mcp/internal/peer"
+	"github.com/TakashiSasaki/hostmesh-mcp/internal/product"
 	"github.com/TakashiSasaki/hostmesh-mcp/internal/state"
 	"github.com/TakashiSasaki/hostmesh-mcp/internal/status"
 	"github.com/google/uuid"
@@ -363,5 +364,28 @@ func defaultStateDir() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(root, "host-status-mcp", "state"), nil
+	return stateDirUnder(root)
+}
+
+// Keep the existing ledger in place across upgrades and rollbacks. Checking the
+// ledger (rather than just the parent directory) also handles pre-created paths.
+func stateDirUnder(root string) (string, error) {
+	current := filepath.Join(root, product.Name, "state")
+	old := filepath.Join(root, product.LegacyName, "state")
+	for _, dir := range []string{current, old} {
+		_, err := os.Stat(filepath.Join(dir, "state.json"))
+		if err == nil {
+			return dir, nil
+		}
+		if !errors.Is(err, os.ErrNotExist) {
+			return "", err
+		}
+	}
+	// The previous process may still be creating its first ledger.
+	if _, err := os.Stat(filepath.Join(old, "state.lock")); err == nil {
+		return old, nil
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return "", err
+	}
+	return current, nil
 }

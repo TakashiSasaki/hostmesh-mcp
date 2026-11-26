@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/TakashiSasaki/hostmesh-mcp/internal/peer"
+	"github.com/TakashiSasaki/hostmesh-mcp/internal/product"
 	"github.com/TakashiSasaki/hostmesh-mcp/internal/state"
 	"github.com/TakashiSasaki/hostmesh-mcp/internal/status"
 	wire "github.com/TakashiSasaki/hostmesh-mcp/proto/hoststatus/peer/v1"
@@ -31,9 +32,10 @@ import (
 )
 
 type testCA struct {
-	cert *x509.Certificate
-	key  ed25519.PrivateKey
-	path string
+	uriPrefix string
+	cert      *x509.Certificate
+	key       ed25519.PrivateKey
+	path      string
 }
 
 func writeTestPEM(t *testing.T, kind string, data []byte) string {
@@ -55,7 +57,15 @@ func newTestCA(t *testing.T) testCA {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return testCA{c, key, writeTestPEM(t, "CERTIFICATE", der)}
+	return testCA{uriPrefix: peer.NodeURIPrefix, cert: c, key: key, path: writeTestPEM(t, "CERTIFICATE", der)}
+}
+
+// During a rolling upgrade the CA continues to serve the installed certificate format.
+func oldFormatTestCA(t *testing.T) testCA {
+	t.Helper()
+	ca := newTestCA(t)
+	ca.uriPrefix = "urn:" + product.LegacyName + ":node:"
+	return ca
 }
 
 func (ca testCA) issue(t *testing.T, id string, until time.Time, names ...string) peerConfig {
@@ -73,7 +83,7 @@ func (ca testCA) issueWithExtensions(t *testing.T, id string, until time.Time, e
 	if err != nil {
 		t.Fatal(err)
 	}
-	uri, err := url.Parse("urn:host-status-mcp:node:" + id)
+	uri, err := url.Parse(ca.uriPrefix + id)
 	if err != nil {
 		t.Fatal(err)
 	}

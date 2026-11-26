@@ -15,7 +15,7 @@ func (a *adminServer) addLinux(s *mcp.Server) {
 		Supervised bool `json:"supervised,omitempty" jsonschema:"Generate settings for an init-supervised peer instead of an installed systemd unit"`
 	}
 	adminTool(s, "update_config_example", "Generate Linux updater settings for GitHub Releases. Replace the absolute peer binary path and service unit or peer config before config_save.", true, false, func(_ context.Context, in updateExample) (adminResult, error) {
-		config := adminResult{"source": "github", "binary": "/opt/hostmesh/hostmesh-mcp"}
+		config := adminResult{"source": "github", "binary": "/opt/hostmesh-mcp/hostmesh-mcp"}
 		if in.Supervised {
 			config["peer_config"] = a.peerPath
 			config["check_interval"] = "24h"

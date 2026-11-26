@@ -78,7 +78,7 @@ func nodeCSR(t *testing.T, c peerConfig, id string) []byte {
 	if err != nil {
 		t.Fatal(err)
 	}
-	u, _ := url.Parse("urn:host-status-mcp:node:" + id)
+	u, _ := url.Parse("urn:hostmesh-mcp:node:" + id)
 	der, err := x509.CreateCertificateRequest(rand.Reader, &x509.CertificateRequest{URIs: []*url.URL{u}, DNSNames: []string{"unapproved.example"}}, pair.PrivateKey)
 	if err != nil {
 		t.Fatal(err)
@@ -146,7 +146,7 @@ func startAuthority(t *testing.T, config string) (string, func()) {
 }
 
 func TestAuthorityLifecycle(t *testing.T) {
-	root := newTestCA(t)
+	root := oldFormatTestCA(t)
 	dir := t.TempDir()
 	cfg := fixtureAuthority(t, dir, root, "127.0.0.1:0")
 	caCmd(t, false, "init", "-config", cfg)
@@ -197,6 +197,9 @@ func TestAuthorityLifecycle(t *testing.T) {
 		t.Fatalf("invalid issued chain: %v", err)
 	}
 	for _, c := range cms.Certificates {
+		if !c.IsCA && (len(c.URIs) != 1 || c.URIs[0].String() != peer.NodeURIPrefix+id) {
+			t.Fatal("renewal did not issue the canonical node identity")
+		}
 		if !c.IsCA && (len(c.DNSNames) != 1 || c.DNSNames[0] != "p.test" || !bytes.Equal(c.RawSubjectPublicKeyInfo, mustLeaf(t, initial).RawSubjectPublicKeyInfo)) {
 			t.Fatal("renewal exceeded approved profile")
 		}

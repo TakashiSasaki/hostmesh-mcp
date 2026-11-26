@@ -13,13 +13,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/TakashiSasaki/hostmesh-mcp/internal/product"
 	"github.com/TakashiSasaki/hostmesh-mcp/internal/status"
 	"github.com/google/uuid"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 func appCommand(ctx context.Context, args ...string) *exec.Cmd {
-	if path := os.Getenv("HOST_STATUS_TEST_BINARY"); path != "" {
+	if path := os.Getenv("HOSTMESH_MCP_TEST_BINARY"); path != "" {
 		return exec.CommandContext(ctx, path, args...)
 	}
 	return exec.CommandContext(ctx, os.Args[0], append([]string{"-test.run=^TestEntrypoint$", "--"}, args...)...)
@@ -78,7 +79,7 @@ func startServeBinary(t *testing.T, c config, binary, version string) readyProce
 		for scan.Scan() {
 			line := scan.Text()
 			if binary != "" {
-				if rest, ok := strings.CutPrefix(line, "host-status-mcp "); ok {
+				if rest, ok := strings.CutPrefix(line, product.LegacyName+" "); ok {
 					line = "hostmesh-mcp " + rest
 				}
 			}

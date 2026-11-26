@@ -23,6 +23,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/TakashiSasaki/hostmesh-mcp/internal/product"
 	"github.com/google/uuid"
 )
 
@@ -49,14 +50,19 @@ func testReleaseFeed(t *testing.T) releaseFixture {
 	}
 	s := httptest.NewServer(http.FileServer(http.Dir(dir)))
 	t.Cleanup(s.Close)
-	return releaseFixture{dir: dir, key: key, config: updateSettings{PublicKeyFile: keyPath, ManifestURL: s.URL + "/release.json", Unit: "host-status-test.service", UserService: true}}
+	return releaseFixture{dir: dir, key: key, config: updateSettings{PublicKeyFile: keyPath, ManifestURL: s.URL + "/release.json", Unit: "hostmesh-mcp-test.service", UserService: true}}
 }
 
 func (f releaseFixture) publish(t *testing.T, version string, binary []byte) {
 	t.Helper()
+	f.publishProduct(t, version, binary, product.Name)
+}
+
+func (f releaseFixture) publishProduct(t *testing.T, version string, binary []byte, name string) {
+	t.Helper()
 	sum := sha256.Sum256(binary)
 	artifact := releaseArtifact{URL: "peer", Size: int64(len(binary)), SHA256: hex.EncodeToString(sum[:])}
-	m := releaseManifest{Product: "host-status-mcp", Version: version, Artifacts: map[string]releaseArtifact{runtime.GOOS + "-" + runtime.GOARCH: artifact}}
+	m := releaseManifest{Product: name, Version: version, Artifacts: map[string]releaseArtifact{runtime.GOOS + "-" + runtime.GOARCH: artifact}}
 	b, err := json.Marshal(m)
 	if err != nil {
 		t.Fatal(err)
@@ -64,6 +70,17 @@ func (f releaseFixture) publish(t *testing.T, version string, binary []byte) {
 	for name, data := range map[string][]byte{"peer": binary, "release.json": b, "release.json.sig": ed25519.Sign(f.key, b)} {
 		if err := os.WriteFile(filepath.Join(f.dir, name), data, 0600); err != nil {
 			t.Fatal(err)
+		}
+	}
+}
+
+func TestManifestIdentity(t *testing.T) {
+	f := testReleaseFeed(t)
+	for _, name := range []string{product.Name, product.LegacyName, "another-product"} {
+		f.publishProduct(t, "0.0.35", []byte("signed fixture"), name)
+		_, _, err := loadRelease(t.Context(), f.config)
+		if (err != nil) != (name == "another-product") {
+			t.Fatalf("unexpected result for signed product %q: %v", name, err)
 		}
 	}
 }
@@ -108,15 +125,15 @@ func TestSignedRelease(t *testing.T) {
 // Run with a real, isolated user unit. Both inputs are standalone builds;
 // the old one must provide server_config and have a lower version.
 func TestSystemdUpdate(t *testing.T) {
-	if os.Getenv("HOST_STATUS_UPDATE_SYSTEMD_TEST") != "1" {
+	if os.Getenv("HOSTMESH_MCP_UPDATE_SYSTEMD_TEST") != "1" {
 		t.Skip("opt-in user systemd integration")
 	}
-	old, next := os.Getenv("HOST_STATUS_PREVIOUS_BINARY"), os.Getenv("HOST_STATUS_TEST_BINARY")
+	old, next := os.Getenv("HOSTMESH_MCP_PREVIOUS_BINARY"), os.Getenv("HOSTMESH_MCP_TEST_BINARY")
 	work := t.TempDir()
 	f := testReleaseFeed(t)
 	c := f.config
 	c.Binary = filepath.Join(work, "hostmesh-mcp")
-	c.Unit = "host-status-test-" + uuid.NewString() + ".service"
+	c.Unit = "hostmesh-mcp-test-" + uuid.NewString() + ".service"
 	read := func(path string) []byte {
 		t.Helper()
 		b, err := os.ReadFile(path)
@@ -150,7 +167,7 @@ func TestSystemdUpdate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ca := newTestCA(t)
+	ca := oldFormatTestCA(t)
 	id := uuid.NewString()
 	p := ca.issue(t, id, time.Now().Add(time.Hour))
 	hub := ca.issue(t, uuid.NewString(), time.Now().Add(time.Hour))
@@ -167,7 +184,7 @@ func TestSystemdUpdate(t *testing.T) {
 	stateDir := filepath.Join(work, "ledger")
 	peerPath := write("peer.json", asJSON(config{StateDir: stateDir, MCPListen: addr, Peer: p}), 0600)
 	settings := write("updater.json", asJSON(c), 0600)
-	unit := write(c.Unit, []byte(fmt.Sprintf("[Unit]\nDescription=Disposable host-status update test\n[Service]\nWorkingDirectory=%s\nExecStart=%s serve -config %s\n", work, c.Binary, peerPath)), 0644)
+	unit := write(c.Unit, []byte(fmt.Sprintf("[Unit]\nDescription=Disposable hostmesh-mcp update test\n[Service]\nWorkingDirectory=%s\nExecStart=%s serve -config %s\n", work, c.Binary, peerPath)), 0644)
 	ctl := func(ctx context.Context, args ...string) error {
 		out, err := exec.CommandContext(ctx, "systemctl", append([]string{"--user"}, args...)...).CombinedOutput()
 		if err != nil {

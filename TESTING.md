@@ -49,7 +49,7 @@ TCP 負荷試験は資源の余裕があるホストや CI 上で別に行う。
 
 ## Docker で行う複数ノード試験
 
-`HOST_STATUS_DOCKER_TEST=1 go test -count=1 -v ./cmd/hostmesh-mcp -run '^TestDockerRelay$'` で実行する。ホストでビルドしたバイナリと試験用のタイムゾーンファイルを含む rootfs を `docker image import` で試験イメージにし、3 ノードで共有する。独立した 2 つのブリッジで A・B 間の TCP 遮断と C 経由の MCP 照会を確認する。B だけにタイムゾーンと試験用の `os-release` を設定し、中継経由で B の現地時刻とディストリビューション情報が返ることを確認する。C を再起動し、同じノード ID で中継が復旧することも確認する。終了時に試験用のコンテナ、ネットワーク、イメージを除去する。
+`HOSTMESH_MCP_DOCKER_TEST=1 go test -count=1 -v ./cmd/hostmesh-mcp -run '^TestDockerRelay$'` で実行する。ホストでビルドしたバイナリと試験用のタイムゾーンファイルを含む rootfs を `docker image import` で試験イメージにし、3 ノードで共有する。独立した 2 つのブリッジで A・B 間の TCP 遮断と C 経由の MCP 照会を確認する。B だけにタイムゾーンと試験用の `os-release` を設定し、中継経由で B の現地時刻とディストリビューション情報が返ることを確認する。C を再起動し、同じノード ID で中継が復旧することも確認する。終了時に試験用のコンテナ、ネットワーク、イメージを除去する。
 
 2026 年 11 月 24 日の計測では、この Linux ARM64 ホストの `/` の空きは約 14.0 GiB。`/var/lib/docker`、`/var/lib/containerd`、Go の既定キャッシュはいずれも `/` に載っている。Docker はイメージ 6 件、使用中 5 件、イメージサイズの集計 30.97 GB と報告した。容量の判断には `df` の空きを使い、Docker の集計は消費先の把握に使う。既存ローカルイメージの正確な候補を確認した範囲では、`alpine` と `busybox` は見つからなかった。
 
@@ -74,7 +74,7 @@ Docker 試験ではホスト側でバイナリをビルドし、外部のベー�
 
 証明書のシードだけで実プロセス間の mTLS 接続を確立し、状態を照会する。シードの設定による上書き、空配列、不正な候補、上限超過は `config check` でも確認する。`server_config` は stdio と、平文・mTLS それぞれのピアの HTTP 入口で呼び出す。起動後に証明書ファイルを書き換えてから、稼働中の証明書の要約と PEM を照合する。
 
-Docker の mTLS 試験は `HOST_STATUS_DOCKER_TEST=1 go test -count=1 -v ./cmd/hostmesh-mcp -run '^TestDockerMTLSRelay$'` で実行できる。テスト専用鍵はノードごとの一時ディレクトリに配置する。
+Docker の mTLS 試験は `HOSTMESH_MCP_DOCKER_TEST=1 go test -count=1 -v ./cmd/hostmesh-mcp -run '^TestDockerMTLSRelay$'` で実行できる。テスト専用鍵はノードごとの一時ディレクトリに配置する。
 
 ## 通常更新の受け入れ条件
 
@@ -87,8 +87,8 @@ Docker の mTLS 試験は `HOST_STATUS_DOCKER_TEST=1 go test -count=1 -v ./cmd/h
 通常の `go test ./...` は現ソースを両方の役に使う。異なる版を検証するときはビルド済みバイナリのパスを渡す。
 
 ```sh
-HOST_STATUS_PREVIOUS_BINARY=/path/to/old/host-status-mcp \
-HOST_STATUS_TEST_BINARY=/path/to/new/hostmesh-mcp \
+HOSTMESH_MCP_PREVIOUS_BINARY=/path/to/old/hostmesh-mcp \
+HOSTMESH_MCP_TEST_BINARY=/path/to/new/hostmesh-mcp \
 go test -count=1 -v ./cmd/hostmesh-mcp -run '^TestSameHostUpgrade$'
 ```
 
@@ -97,9 +97,9 @@ go test -count=1 -v ./cmd/hostmesh-mcp -run '^TestSameHostUpgrade$'
 `TestSignedRelease` は一時 Ed25519 鍵とループバック配布サーバーを使い、署名、ダウンロード内容、版の比較を検査する。`TestSystemdUpdate` は一時ユーザーユニットと mTLS ピアを作り、終了時にユニットを削除する。旧版と新版を用意し、同じ URL とノード ID での更新、第三のピアからの照会、改変バイナリの拒否、起動失敗時の旧版復旧、更新中断からの回復、同時実行拒否を確認する。
 
 ```sh
-HOST_STATUS_UPDATE_SYSTEMD_TEST=1 \
-HOST_STATUS_PREVIOUS_BINARY=/path/to/older/host-status-mcp \
-HOST_STATUS_TEST_BINARY=/path/to/current/hostmesh-mcp \
+HOSTMESH_MCP_UPDATE_SYSTEMD_TEST=1 \
+HOSTMESH_MCP_PREVIOUS_BINARY=/path/to/older/hostmesh-mcp \
+HOSTMESH_MCP_TEST_BINARY=/path/to/current/hostmesh-mcp \
 go test -count=1 -v ./cmd/hostmesh-mcp -run '^TestSystemdUpdate$'
 ```
 
@@ -114,7 +114,7 @@ go test -count=1 -v ./cmd/hostmesh-mcp -run '^TestSystemdUpdate$'
 ホストと同じアーキテクチャで静的ビルドした旧版と現行版を用意する。次のスクリプトは空の Docker イメージに両バイナリと Go のテスト実行ファイルを読み取り専用でマウントする。コンテナは通常ユーザー、外部ネットワークなしで実行し、署名付きの模擬配布元と MCP はループバックを使う。試験後は専用イメージと一時ファイルを削除する。
 
 ```sh
-scripts/test-supervise-docker.sh /path/to/old/host-status-mcp /path/to/new/hostmesh-mcp
+scripts/test-supervise-docker.sh /path/to/old/hostmesh-mcp /path/to/new/hostmesh-mcp
 ```
 
 `TestSupervisedUpdate` は配布元に問い合わせる前の起動、ダウンロード待機中に異常終了した子の再起動、二重起動と改変署名の拒否を確認する。台帳を破損して終了する署名済み候補では旧版と台帳が復元されることを確認する。次に候補の起動中に監督プロセスを `SIGKILL` し、子も終了すること、別ピアの設定による復旧が拒否されること、元の設定で配布元へのアクセスなしに復旧することを確認する。最後にタイマーによる正規の新版への更新、同じ MCP URL・ノード ID、同版での PID 維持、親子の正常停止を検証する。物理的な電源断やフラッシュ媒体の耐障害性はこの試験の対象外。
@@ -126,7 +126,7 @@ scripts/test-supervise-docker.sh /path/to/old/host-status-mcp /path/to/new/hostm
 `TestDockerMeshCertificateRenewal` は Linux の独立した内部ネットワークを 2 つ作る。中継だけが両ネットワークに参加し、実バイナリの `ca serve` を出口側のネットワーク名前空間で独立したコンテナとして起動する。ルート秘密鍵はコンテナに渡さず、署名用中間 CA と登録台帳を使う。各ノードから TCP 到達性を検査し、更新元から出口・CA への直接接続ができない状態で、自動更新、鍵の維持、同じ MCP URL の新証明書、メッシュ経由の状態照会を検証する。専用イメージ、コンテナ、ネットワークはテスト後に削除する。
 
 ```sh
-HOST_STATUS_DOCKER_TEST=1 go test -count=1 -v ./cmd/hostmesh-mcp -run '^TestDockerMeshCertificateRenewal$'
+HOSTMESH_MCP_DOCKER_TEST=1 go test -count=1 -v ./cmd/hostmesh-mcp -run '^TestDockerMeshCertificateRenewal$'
 ```
 
 `TestAuthorityLifecycle` はローカル CLI と実際の TLS 接続で、登録済みの ID と鍵、承認した名前とシード、異なる鍵や不正な署名の拒否、同一鍵の複数世代の失効、CA 再起動後の失効維持、手動の新鍵登録を検証する。

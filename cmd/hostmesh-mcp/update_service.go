@@ -230,7 +230,7 @@ func (t updateTarget) probe(ctx context.Context, version string) error {
 		if endpoint == "" {
 			continue
 		}
-		client := mcp.NewClient(&mcp.Implementation{Name: "host-status-updater", Version: strings.TrimSpace(versionFile)}, nil)
+		client := mcp.NewClient(&mcp.Implementation{Name: "hostmesh-mcp-updater", Version: strings.TrimSpace(versionFile)}, nil)
 		s, err := client.Connect(ctx, &mcp.StreamableClientTransport{Endpoint: endpoint}, nil)
 		if err != nil {
 			return err

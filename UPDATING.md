@@ -4,26 +4,26 @@ Linux 上の単体バイナリを対象とする。ピアの起動と更新は�
 
 ## systemd を使わない機器での起動
 
-初回は、GitHub 更新に対応した 0.0.30 以降の信頼済みバイナリを監督用とピア用にコピーする。例えば `/opt/host-status` を用意し、次の 2 ファイルを配置する。
+初回は、GitHub 更新に対応した 0.0.30 以降の信頼済みバイナリを監督用とピア用にコピーする。例えば `/opt/hostmesh-mcp` を用意し、次の 2 ファイルを配置する。
 
 ```sh
-cp ./hostmesh-mcp /opt/host-status/hostmesh-mcp-supervisor
-cp ./hostmesh-mcp /opt/host-status/hostmesh-mcp
-chmod 755 /opt/host-status/hostmesh-mcp-supervisor /opt/host-status/hostmesh-mcp
+cp ./hostmesh-mcp /opt/hostmesh-mcp/hostmesh-mcp-supervisor
+cp ./hostmesh-mcp /opt/hostmesh-mcp/hostmesh-mcp
+chmod 755 /opt/hostmesh-mcp/hostmesh-mcp-supervisor /opt/hostmesh-mcp/hostmesh-mcp
 ```
 
 機器の init から次のコマンドをフォアグラウンドで起動する。監督プロセス自身が終了した場合と機器の再起動時の起動は init が担当する。
 
 ```sh
-/opt/host-status/hostmesh-mcp-supervisor supervise -config /etc/host-status/updater.json
+/opt/hostmesh-mcp/hostmesh-mcp-supervisor supervise -config /etc/hostmesh-mcp/updater.json
 ```
 
 `updater.json` の例。`source` に `github` を指定し、パスは機器の配置に合わせる。
 
 ```json
 {
-  "binary": "/opt/host-status/hostmesh-mcp",
-  "peer_config": "/etc/host-status/peer.json",
+  "binary": "/opt/hostmesh-mcp/hostmesh-mcp",
+  "peer_config": "/etc/hostmesh-mcp/peer.json",
   "source": "github",
   "check_interval": "24h"
 }
@@ -36,7 +36,7 @@ chmod 755 /opt/host-status/hostmesh-mcp-supervisor /opt/host-status/hostmesh-mcp
 
 ## systemd サービスの初回準備
 
-以下はユーザーサービス `host-status-mcp.service` の例。対象サービスの `ExecStart` には更新対象のバイナリの絶対パスと `serve -config <ピア設定>` を指定する。MCP とピアの待受先には固定ポートを使う。ホスト上で複数のサービスを個別に更新する場合は、各サービスに専用のバイナリパスを割り当てる。
+以下はユーザーサービス `hostmesh-mcp.service` の例。対象サービスの `ExecStart` には更新対象のバイナリの絶対パスと `serve -config <ピア設定>` を指定する。MCP とピアの待受先には固定ポートを使う。ホスト上で複数のサービスを個別に更新する場合は、各サービスに専用のバイナリパスを割り当てる。
 
 0.0.30 以降の信頼済みバイナリのコピーを更新用にも配置する。これで更新中に候補版が起動できなくなっても、同じ配布バイナリから用意した更新コマンドを実行できる。
 
@@ -46,13 +46,13 @@ install -Dm755 ./hostmesh-mcp ~/.local/libexec/hostmesh-mcp-updater
 
 ピアのサービスアカウントで更新コマンドを実行する。Linux の `/proc` で実プロセスの設定、作業ディレクトリ、台帳を特定するため、対象プロセスの参照、バイナリ配置ディレクトリと台帳への書き込み、対象ユニットの操作が必要になる。偽の配布元への差し替えを防ぐため、更新設定とバイナリの配置ディレクトリは管理するアカウントだけが変更できる場所に置く。
 
-`~/.config/host-status-mcp/updater.json` の例。実際の絶対パスとユニット名に置き換える。
+`~/.config/hostmesh-mcp/updater.json` の例。実際の絶対パスとユニット名に置き換える。
 
 ```json
 {
   "source": "github",
   "binary": "/home/alice/.local/bin/hostmesh-mcp",
-  "systemd_unit": "host-status-mcp.service",
+  "systemd_unit": "hostmesh-mcp.service",
   "user_service": true
 }
 ```
@@ -62,8 +62,8 @@ install -Dm755 ./hostmesh-mcp ~/.local/libexec/hostmesh-mcp-updater
 ## systemd サービスの確認と適用
 
 ```sh
-~/.local/libexec/hostmesh-mcp-updater update check -config ~/.config/host-status-mcp/updater.json
-~/.local/libexec/hostmesh-mcp-updater update apply -config ~/.config/host-status-mcp/updater.json
+~/.local/libexec/hostmesh-mcp-updater update check -config ~/.config/hostmesh-mcp/updater.json
+~/.local/libexec/hostmesh-mcp-updater update apply -config ~/.config/hostmesh-mcp/updater.json
 ```
 
 `check` はインストール済みと署名を検証した公開版のバージョンを表示する。`apply` は `major.minor.patch` を数値比較し、新しい安定版だけを適用する。同版・旧版の公開情報では再起動しない。正常時の終了コードは 0。更新や復旧の失敗は標準エラーと終了コード 1 で通知する。
@@ -82,12 +82,14 @@ install -Dm755 ./hostmesh-mcp ~/.local/libexec/hostmesh-mcp-updater
 手動の `update check` と `update apply` で配布元とサービスの設定を確認してから、同梱のユーザータイマーを有効化できる。1 日に 1 回、ホストごとに最大 1 時間のずれを設けて同じ適用処理を呼び出す。
 
 ```sh
-install -Dm644 deploy/systemd/host-status-mcp-update.service ~/.config/systemd/user/host-status-mcp-update.service
-install -Dm644 deploy/systemd/host-status-mcp-update.timer ~/.config/systemd/user/host-status-mcp-update.timer
+install -Dm644 deploy/systemd/hostmesh-mcp-update.service ~/.config/systemd/user/hostmesh-mcp-update.service
+install -Dm644 deploy/systemd/hostmesh-mcp-update.timer ~/.config/systemd/user/hostmesh-mcp-update.timer
 systemctl --user daemon-reload
-systemctl --user enable --now host-status-mcp-update.timer
-journalctl --user -u host-status-mcp-update.service
+systemctl --user enable --now hostmesh-mcp-update.timer
+journalctl --user -u hostmesh-mcp-update.service
 ```
+
+以前の名前でタイマーを登録済みの場合は、切り替え前に旧タイマーを停止・無効化する。既存の `updater.json` を新しいユニットの `-config` が参照する場所に配置し、`systemd_unit` は実際に運転しているサービス名に合わせる。
 
 ## GitHub Releases で公開する
 
@@ -121,6 +123,6 @@ openssl pkey -in release.key -pubout -out release.pub
 scripts/build-release.sh ./dist-release /absolute/path/to/release.key
 ```
 
-0.0.26 から配布ファイル名は `hostmesh-mcp-<version>-linux-<arch>`。既存の更新クライアントも署名を検証できるよう、マニフェストの製品 ID には `host-status-mcp` を使う。更新先は設定の `binary` で指定する。
+0.0.26 から配布ファイル名は `hostmesh-mcp-<version>-linux-<arch>`。0.0.35 から署名付きマニフェストの製品 ID は `hostmesh-mcp`。独自配布で切り替える際は、先に各ホストの監督用・更新用プログラムを 0.0.35 以降に更新する。新版は従来の署名付きマニフェストも検証できる。GitHub Releases 方式はこの製品 ID を使用しない。更新先は設定の `binary` で指定する。
 
 スクリプトは Linux ARM64 と x86_64 向けの実行ファイル、`release.json`、そのバイト列に対する Ed25519 の署名（64 バイトの `release.json.sig`）を生成する。バイナリはバージョン別の名前で配布し、署名・マニフェストは組として公開する。不一致やダウンロードの途切れは適用前に検出される。公開 URL は HTTPS を使い、ローカル検証ではループバック IP への HTTP も利用できる。署名鍵は配布ホストにアップロードするファイルから除外する。

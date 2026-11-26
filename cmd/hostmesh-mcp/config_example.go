@@ -41,9 +41,9 @@ func peerExample(join, mtls bool) map[string]any {
 		peer.Advertise = []string{endpoint}
 	}
 	if mtls {
-		peer.CAFile = "/etc/host-status-mcp/ca.pem"
-		peer.CertFile = "/etc/host-status-mcp/node.pem"
-		peer.KeyFile = "/etc/host-status-mcp/node.key"
+		peer.CAFile = "/etc/hostmesh-mcp/ca.pem"
+		peer.CertFile = "/etc/hostmesh-mcp/node.pem"
+		peer.KeyFile = "/etc/hostmesh-mcp/node.key"
 	}
 	return map[string]any{"mcp_listen": "127.0.0.1:8787", "peer": peer}
 }

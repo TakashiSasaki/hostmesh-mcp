@@ -23,7 +23,7 @@ func TestSameHostUpgrade(t *testing.T) {
 		t.Skip("POSIX SIGTERM cutover")
 	}
 	current := strings.TrimSpace(versionFile)
-	oldBinary := os.Getenv("HOST_STATUS_PREVIOUS_BINARY")
+	oldBinary := os.Getenv("HOSTMESH_MCP_PREVIOUS_BINARY")
 	previous := current
 	if oldBinary != "" {
 		out, err := exec.CommandContext(t.Context(), oldBinary, "version").Output()
@@ -36,7 +36,7 @@ func TestSameHostUpgrade(t *testing.T) {
 		t.Run(mode, func(t *testing.T) {
 			var ca testCA
 			if mode == "mtls" {
-				ca = newTestCA(t)
+				ca = oldFormatTestCA(t)
 			}
 			instance := func(seeds ...string) config {
 				var p peerConfig

@@ -1,0 +1,6 @@
+[Unit]
+Description=Check and update the local hostmesh-mcp peer
+
+[Service]
+Type=oneshot
+ExecStart=%h/.local/libexec/hostmesh-mcp-updater update apply -config %h/.config/hostmesh-mcp/updater.json

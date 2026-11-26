@@ -15,8 +15,9 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
-	"strings"
 	"time"
+
+	"github.com/TakashiSasaki/hostmesh-mcp/internal/peer"
 )
 
 type Config struct {
@@ -212,10 +213,8 @@ func (a *Authority) serverTLS() (*tls.Config, error) {
 	if p.Leaf.IsCA || len(p.Leaf.DNSNames)+len(p.Leaf.IPAddresses) == 0 {
 		return nil, errors.New("EST requires a dedicated server leaf with DNS or IP SAN")
 	}
-	for _, u := range p.Leaf.URIs {
-		if strings.HasPrefix(u.String(), "urn:host-status-mcp:node:") {
-			return nil, errors.New("EST server must have a separate identity from a mesh peer")
-		}
+	if peer.HasNodeURI(p.Leaf) {
+		return nil, errors.New("EST server must have a separate identity from a mesh peer")
 	}
 	_, err = verifyPair(p, a.roots, x509.ExtKeyUsageServerAuth)
 	if err != nil {

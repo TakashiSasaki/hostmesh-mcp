@@ -25,7 +25,7 @@ func checkKernelRelease(t *testing.T, s *status.System) {
 }
 
 func TestWindowsNative(t *testing.T) {
-	if os.Getenv("HOST_STATUS_STANDARD_USER") == "1" && windows.GetCurrentProcessToken().IsElevated() {
+	if os.Getenv("HOSTMESH_MCP_STANDARD_USER") == "1" && windows.GetCurrentProcessToken().IsElevated() {
 		t.Fatal("expected standard user")
 	}
 	ctx, cancel := context.WithTimeout(t.Context(), 45*time.Second)

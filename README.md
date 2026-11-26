@@ -24,7 +24,7 @@ go build -o hostmesh-mcp ./cmd/hostmesh-mcp
 ./hostmesh-mcp stdio
 ```
 
-MCP クライアントのコマンド設定では、実行ファイルへの絶対パスと引数 `stdio` を指定する。既定の状態ディレクトリは `os.UserConfigDir()` 配下の `host-status-mcp/state`。同じマシンで複数ノードを動かすときは、ノードごとに `-state-dir` または設定の `state_dir` を指定する。
+MCP クライアントのコマンド設定では、実行ファイルへの絶対パスと引数 `stdio` を指定する。既定の状態ディレクトリは `os.UserConfigDir()` 配下の `hostmesh-mcp/state`。同じマシンで複数ノードを動かすときは、ノードごとに `-state-dir` または設定の `state_dir` を指定する。
 
 ## ピア設定のひな型を出力する
 
@@ -58,7 +58,7 @@ A の設定 `a.json` の例。
 ```json
 {
   "mcp_listen": "127.0.0.1:8787",
-  "state_dir": "/tmp/host-status-demo-a",
+  "state_dir": "/tmp/hostmesh-mcp-demo-a",
   "filesystems": ["/"],
   "peer": {
     "listen": "127.0.0.1:7443",
@@ -72,7 +72,7 @@ B の設定 `b.json` の例。
 ```json
 {
   "mcp_listen": "",
-  "state_dir": "/tmp/host-status-demo-b",
+  "state_dir": "/tmp/hostmesh-mcp-demo-b",
   "peer": {
     "seeds": ["127.0.0.1:7443"]
   }
@@ -101,7 +101,7 @@ Linux 版 0.0.30 以降は、更新設定の `"source": "github"` で公式 GitH
 
 | 設定 | 旧プロセスの例 | 新プロセスの例 |
 | --- | --- | --- |
-| `state_dir` | `/var/lib/host-status-mcp/blue` | `/var/lib/host-status-mcp/green` |
+| `state_dir` | `/var/lib/hostmesh-mcp/blue` | `/var/lib/hostmesh-mcp/green` |
 | `mcp_listen` | `127.0.0.1:8787` | `127.0.0.1:8788` |
 | `peer.listen` と `peer.advertise` の接続先 | `10.0.0.5:7443` | `10.0.0.5:7444` |
 
@@ -125,9 +125,9 @@ Linux 版 0.0.30 以降は、更新設定の `"source": "github"` で公式 GitH
   "peer": {
     "listen": ":7443",
     "advertise": ["a.example.internal:7443"],
-    "ca_file": "/etc/host-status-mcp/ca.pem",
-    "cert_file": "/etc/host-status-mcp/node.pem",
-    "key_file": "/etc/host-status-mcp/node.key"
+    "ca_file": "/etc/hostmesh-mcp/ca.pem",
+    "cert_file": "/etc/hostmesh-mcp/node.pem",
+    "key_file": "/etc/hostmesh-mcp/node.key"
   }
 }
 ```
@@ -146,7 +146,7 @@ CA 管理者はノードの UUID と接続用の DNS 名・IP を確認し、以
 basicConstraints=critical,CA:FALSE
 keyUsage=critical,digitalSignature
 extendedKeyUsage=clientAuth,serverAuth
-subjectAltName=URI:urn:host-status-mcp:node:7043f65e-b1f6-489d-a0d2-5d402035735d,DNS:a.example.internal,IP:192.0.2.10
+subjectAltName=URI:urn:hostmesh-mcp:node:7043f65e-b1f6-489d-a0d2-5d402035735d,DNS:a.example.internal,IP:192.0.2.10
 ```
 
 CA 管理者は、参加ノード用の `node.ext` に初期接続先を設定する次の 1 行を追加できる。値は非クリティカル X.509 拡張の DER UTF8String で、カンマ区切りの `host:port` を 1〜16 件指定する。IPv6 の例は `[fd00::1]:7443`。
@@ -276,16 +276,16 @@ Linux コンテナではディストリビューションはコンテナ内の�
 ```sh
 go test ./...
 go test -race ./internal/peer ./internal/state
-HOST_STATUS_DOCKER_TEST=1 go test -v ./cmd/hostmesh-mcp -run '^TestDockerRelay$' -count=1
-HOST_STATUS_SCALE_TEST=1 go test -v ./internal/peer -run '^TestMesh100$' -count=1
+HOSTMESH_MCP_DOCKER_TEST=1 go test -v ./cmd/hostmesh-mcp -run '^TestDockerRelay$' -count=1
+HOSTMESH_MCP_SCALE_TEST=1 go test -v ./internal/peer -run '^TestMesh100$' -count=1
 ```
 
-通常のテストはループバック TCP と一時ディレクトリを使う。Docker 試験はローカルの Docker Engine を使い、A と B の TCP を 2 つの独立したブリッジで分離して C 経由の照会と再起動後の復旧を確認する。100 台の試験はメモリ内 gRPC で、フルメッシュと単一中継の両方を確認する。実バイナリでプロセス試験を繰り返すには、絶対パスを `HOST_STATUS_TEST_BINARY` に設定して `go test -count=1 ./cmd/hostmesh-mcp` を実行する。
+通常のテストはループバック TCP と一時ディレクトリを使う。Docker 試験はローカルの Docker Engine を使い、A と B の TCP を 2 つの独立したブリッジで分離して C 経由の照会と再起動後の復旧を確認する。100 台の試験はメモリ内 gRPC で、フルメッシュと単一中継の両方を確認する。実バイナリでプロセス試験を繰り返すには、絶対パスを `HOSTMESH_MCP_TEST_BINARY` に設定して `go test -count=1 ./cmd/hostmesh-mcp` を実行する。
 
 ピアの型を変更した場合は、`protoc` 36.2、`protoc-gen-go` v1.36.12、`protoc-gen-go-grpc` v1.6.0 を使う。
 
 ```sh
-protoc -I . --go_out=paths=source_relative:. --go-grpc_out=paths=source_relative:. proto/hoststatus/peer/v1/peer.proto
+protoc -I . --go_out=paths=source_relative:. --go-grpc_out=paths=source_relative:. proto/*/peer/v1/peer.proto
 ```
 
 [設計](DESIGN.md) と [テスト設計](TESTING.md) に Linux の ARM64・x86_64 配布、curl による導入、後続の OS 対応と任意の mTLS の条件を記載している。

@@ -61,7 +61,10 @@ func (a *Authority) issue(p Profile, public any) ([]*x509.Certificate, error) {
 	if !notAfter.After(now) {
 		return nil, errors.New("issuer chain has expired")
 	}
-	uri := &url.URL{Scheme: "urn", Opaque: "host-status-mcp:node:" + p.NodeID}
+	uri, err := url.Parse(peer.NodeURIPrefix + p.NodeID)
+	if err != nil {
+		return nil, err
+	}
 	c := &x509.Certificate{
 		Subject:               pkix.Name{CommonName: p.NodeID},
 		URIs:                  []*url.URL{uri},
