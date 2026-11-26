@@ -6,8 +6,10 @@ import (
 	"crypto/ed25519"
 	"crypto/rand"
 	"crypto/rsa"
+	"crypto/sha256"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/hex"
 	"encoding/pem"
 	"errors"
 	"fmt"
@@ -105,14 +107,21 @@ func (a *Authority) issue(p Profile, public any) ([]*x509.Certificate, error) {
 	return append([]*x509.Certificate{leaf}, issuers...), nil
 }
 
-// Enroll is a local operation. Only the approved profile supplies subject,
-// SANs, key usages and seeds. The CSR contributes solely its proven public key.
-func (a *Authority) Enroll(p Profile, csrPEM []byte) ([]byte, error) {
-	if err := p.validate(); err != nil {
-		return nil, err
-	}
-	block, rest := pem.Decode(csrPEM)
-	if block == nil || block.Type != "CERTIFICATE REQUEST" || len(bytes.TrimSpace(rest)) != 0 {
+// EnrollmentRequest represents a signature-verified request. Only its public key
+// contributes to the certificate; identity and permissions come from the profile.
+type EnrollmentRequest struct {
+	request         *x509.CertificateRequest
+	CSRSHA256       string `json:"csr_sha256"`
+	PublicKeySHA256 string `json:"public_key_sha256"`
+	Algorithm       string `json:"public_key_algorithm"`
+}
+
+func ParseEnrollmentRequest(data []byte) (*EnrollmentRequest, error) {
+	data = bytes.TrimSpace(data)
+	block, rest := pem.Decode(data)
+	if block == nil || block.Type != "CERTIFICATE REQUEST" || len(rest) != 0 ||
+		!bytes.HasPrefix(data, []byte("-----BEGIN CERTIFICATE REQUEST-----")) ||
+		bytes.Count(data, []byte("-----BEGIN ")) != 1 {
 		return nil, errors.New("expected a single PKCS#10 PEM CSR")
 	}
 	csr, err := parseCSR(block.Bytes)
@@ -123,18 +132,37 @@ func (a *Authority) Enroll(p Profile, csrPEM []byte) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+	digest := sha256.Sum256(csr.Raw)
+	return &EnrollmentRequest{request: csr, CSRSHA256: hex.EncodeToString(digest[:]), PublicKeySHA256: id, Algorithm: csr.PublicKeyAlgorithm.String()}, nil
+}
+
+var (
+	ErrKeyRevoked   = errors.New("key revoked")
+	ErrNodeConflict = errors.New("conflicting node registration")
+)
+
+func (a *Authority) Enroll(p Profile, request *EnrollmentRequest) ([]byte, error) {
+	if err := p.validate(); err != nil {
+		return nil, err
+	}
+	csr, id := request.request, request.PublicKeySHA256
 	var out bytes.Buffer
-	err = withRegistry(a.config.StateDir, true, func(path string) error {
+	err := withRegistry(a.config.StateDir, true, func(path string) error {
 		r, err := readRegistry(path)
 		if err != nil {
 			return err
 		}
-		if reg, ok := r.Keys[id]; ok && (reg.Revoked || reg.Profile.NodeID != p.NodeID) {
-			return errors.New("key revoked or bound to another node")
+		if reg, ok := r.Keys[id]; ok {
+			if reg.Revoked {
+				return ErrKeyRevoked
+			}
+			if reg.Profile.NodeID != p.NodeID {
+				return fmt.Errorf("%w: key bound to another node", ErrNodeConflict)
+			}
 		}
 		for fingerprint, reg := range r.Keys {
 			if !reg.Revoked && reg.Profile.NodeID == p.NodeID && fingerprint != id {
-				return errors.New("revoke the previous key before enrolling its replacement")
+				return fmt.Errorf("%w: revoke the previous key before enrolling its replacement", ErrNodeConflict)
 			}
 		}
 		chain, err := a.issue(p, csr.PublicKey)

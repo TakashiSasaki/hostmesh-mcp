@@ -13,11 +13,14 @@ import (
 )
 
 func runCA(ctx context.Context, args []string) error {
-	const usage = "usage: hostmesh-mcp ca bootstrap -dir <new-directory> -server-name <DNS-or-IP> | ca {serve|init|enroll|revoke|config check} -config <ca.json> (template: hostmesh-mcp ca config example)"
+	const usage = "usage: hostmesh-mcp ca <command> (see hostmesh-mcp help ca or hostmesh-mcp help enrollment)"
 	if len(args) == 0 {
 		return errors.New(usage)
 	}
 	command := args[0]
+	if command == "inspect" || command == "enroll" {
+		return runEnrollment(command, args[1:])
+	}
 	if command == "bootstrap" {
 		fs := flag.NewFlagSet("ca bootstrap", flag.ContinueOnError)
 		dir := fs.String("dir", "", "new directory for offline and online CA files")
@@ -51,12 +54,9 @@ func runCA(ctx context.Context, args []string) error {
 	}
 	fs := flag.NewFlagSet("ca "+command, flag.ContinueOnError)
 	configFile := fs.String("config", "", "CA JSON configuration")
-	var profile, csrPath, node, certPath string
+	var node, certPath string
 	switch command {
 	case "init", "serve", "config check":
-	case "enroll":
-		fs.StringVar(&profile, "profile", "", "operator-approved node profile JSON")
-		fs.StringVar(&csrPath, "csr", "", "signed PEM CSR from the node")
 	case "revoke":
 		fs.StringVar(&certPath, "cert", "", "revoke exactly the key of this PEM peer certificate")
 		fs.StringVar(&node, "node-id", "", "revoke this node's registered public key")
@@ -91,10 +91,6 @@ func runCA(ctx context.Context, args []string) error {
 			}
 		}
 		return authority.Revoke(cfg.StateDir, node, cert)
-	case "enroll":
-		if csrPath == "" || profile == "" {
-			return errors.New("ca enroll requires -csr and -profile")
-		}
 	}
 	a, err := authority.Load(cfg)
 	if err != nil {
@@ -107,23 +103,5 @@ func runCA(ctx context.Context, args []string) error {
 		fmt.Fprintln(os.Stdout, "CA configuration OK")
 		return nil
 	}
-	if command == "serve" {
-		return a.Serve(ctx, os.Stderr)
-	}
-	p, err := authority.ReadProfile(profile)
-	if err != nil {
-		return err
-	}
-	data, err := os.ReadFile(csrPath)
-	if err != nil {
-		return err
-	}
-	chain, err := a.Enroll(p, data)
-	if err != nil {
-		return err
-	}
-	if _, err = os.Stdout.Write(chain); err != nil {
-		return fmt.Errorf("write issued certificate: %w", err)
-	}
-	return nil
+	return a.Serve(ctx, os.Stderr)
 }

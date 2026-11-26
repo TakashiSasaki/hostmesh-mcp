@@ -90,9 +90,24 @@ hostmesh-mcp peer csr -dir mesh-peer
 
 `node_id` は正規表記の UUID v4。名前、IP、シードは任意。証明書の用途は既定で clientAuth と serverAuth。発信専用ノードには `"client_only": true` を指定できる。CA は CSR で鍵の所持を検証し、発行内容には管理者が登録したプロファイルを使う。
 
-```sh
-hostmesh-mcp ca enroll -config mesh-ca/online/ca.json -profile node.json -csr node.csr > node-issued.pem
-```
+CLI で同じ手順を確認するには `hostmesh-mcp help enrollment` を実行する。CA サービスが停止中でも初回登録できる。
+
+1. 参加ピア側で `hostmesh-mcp ca inspect -csr mesh-peer/node.csr` を実行する。所有者は `csr_sha256` を管理者に別の信頼済み経路で伝える。
+2. CA ホストで受け取った CSR を検査する。下記のコマンドは署名を検証し、CSR と公開鍵のフィンガープリント、台帳上の鍵の状態を JSON で返す。発行・登録の副作用はない。未登録の鍵には台帳上の `node_id` がなく、発行時に管理者のプロファイルから割り当てる。
+
+   ```sh
+   hostmesh-mcp ca inspect -csr node.csr -config mesh-ca/online/ca.json -json
+   ```
+
+3. 所有者から受け取った値と `csr_sha256` を照合する。これは DER 形式の CSR 全体の SHA-256。`public_key_sha256` は DER 形式の公開鍵（SubjectPublicKeyInfo）の SHA-256 で、台帳が鍵を識別するために使う。未承認の申請はここで終了する。却下のための台帳操作は不要。
+4. 承認したときは、次の `APPROVED_CSR_SHA256` に所有者から確認済みの値を設定して発行する。
+
+   ```sh
+   hostmesh-mcp ca enroll -config mesh-ca/online/ca.json -profile node.json -csr node.csr \
+     -expect-csr-sha256 "$APPROVED_CSR_SHA256" -out node-issued.pem -json
+   ```
+
+`-out` は出力先を新規作成する。既存ファイルがある場合は発行前に停止する。`-json` の成功時は標準出力にノード ID・フィンガープリント・証明書の保存先、失敗時は標準エラーに `code` と `message` が返る。終了コードは成功が 0、失敗が非ゼロ。`CSR_MISMATCH` は承認値の不一致、`KEY_REVOKED` は失効済み、`NODE_ID_CONFLICT` は登録済みの鍵とノード ID の競合を表す。従来どおり `-json` と `-out` を省くと、証明書チェーンが PEM で標準出力に返る。
 
 コマンドの成功後、ノードに `node-issued.pem` と `root.pem` を渡す。前者を `peer.cert_file`、後者を `peer.ca_file`、参加ピアに保管した `mesh-peer/node.key` を `peer.key_file` に設定する。その後の EST 更新は mTLS 接続のノード ID、登録済みの公開鍵、CSR の署名と公開鍵を毎回確認する。
 

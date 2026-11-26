@@ -131,6 +131,22 @@ func readRegistry(path string) (registry, error) {
 	return r, nil
 }
 
+// KeyStatus reads an atomic registry snapshot without opening any private keys.
+func KeyStatus(dir, id string) (status, nodeID string, err error) {
+	r, err := readRegistry(filepath.Join(dir, "registry.json"))
+	if err != nil {
+		return "", "", err
+	}
+	reg, found := r.Keys[id]
+	if !found {
+		return "unregistered", "", nil
+	}
+	if reg.Revoked {
+		return "revoked", reg.Profile.NodeID, nil
+	}
+	return "active", reg.Profile.NodeID, nil
+}
+
 func (r registry) save(path string) error {
 	dir := filepath.Dir(path)
 	d, err := os.Open(dir)
