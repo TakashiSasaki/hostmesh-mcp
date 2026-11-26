@@ -14,14 +14,24 @@
 hostmesh-mcp config check -config /etc/hostmesh-mcp/peer.json
 ```
 
-**起動まで任せるとき**は、試運転か常駐かも伝える。たとえば「この管理 MCP セッションで設定済みのピアを試運転し、ノード ID と監視用 URL を報告してから停止してください」と依頼する。エージェントは次の順に操作できる。
+**新しいピアを試運転するとき**は、空の作業ディレクトリを用意し、管理 MCP の起動引数 `-peer-config` にその中の `peer.json` の絶対パスを渡す。接続後は同じ管理セッションで次のように進める。
 
-| 管理 MCP で呼ぶツール | 引数 | 確認する結果 |
+1. `admin_info({})` の `peer_config` で保存先を確認し、`peer_config_example({})` でひな型を取得する。
+2. ひな型の `config` に試験専用の絶対パスを `state_dir` として設定し、`mcp_listen` と `peer.listen` を `127.0.0.1:0` にする。固定の `peer.advertise` を外し、`config_save` に `kind: "peer"` と編集した `config` 全体を渡す。
+3. 前回と同じ設定で再試行するときは、下の表の検査から再開する。内容を変える場合は `config_read({"kind":"peer"})` で現在の設定と `sha256` を取得し、編集した設定全体を `config` に、取得したハッシュを `expected_sha256` に指定して保存する。`configuration revision mismatch` が返った場合も再読込する。
+
+設定済みのピアなら「この管理 MCP セッションで試運転し、ノード ID とメモリを確認してから停止してください」と依頼できる。
+
+| 呼び出すツール（監視 HTTP 以外は管理 MCP） | 引数 | 確認する結果 |
 | --- | --- | --- |
 | `admin_info` → `config_check` | `{}` → `{"kind":"peer"}` | `peer_config` が対象の設定パスで、検査結果が `valid: true` |
 | `peer_start` | `{}` | `details.node_id` と `details.mcp_url` |
 | `service_status` | `{}` | `services.peer.status` が `running` |
+| 監視 HTTP の `host_status` | `{"sections":["memory"]}` | 管理セッションを開いたまま別クライアントで `details.mcp_url` に接続し、応答の `node.node_id` と `sections.memory` を確認 |
 | `service_stop` | `{"service":"peer"}` | `status` が `stopped` |
+| `service_status` | `{}` | `services.peer.status` が `stopped` |
+
+`details.mcp_url` は `/mcp` まで含む完全な URL。そのまま監視クライアントに渡す。シェルからの照会には初期化を含む実行例がある。[curl で監視用 MCP を照会する](OPERATIONS.md#curl-で監視用-mcp-を照会する)
 
 検査に失敗したときは、そのエラーを報告して起動手順を終了する。試運転には専用の台帳と空いているポートを用意する。運転中の Linux サービスを管理する依頼では、対象の systemd ユニット名を指定する。[既存ユニットの操作とセッションの寿命](#起動停止と更新)
 
