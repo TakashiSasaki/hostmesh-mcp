@@ -44,13 +44,8 @@ func (p Profile) validate() error {
 		return errors.New("too many names")
 	}
 	for _, name := range p.DNS {
-		if !peer.ValidEndpoint(net.JoinHostPort(name, "443")) || strings.ContainsAny(name, ":") || net.ParseIP(name) != nil {
+		if !validDNSName(name) {
 			return fmt.Errorf("invalid DNS name %q", name)
-		}
-		for _, label := range strings.Split(name, ".") {
-			if len(label) == 0 || len(label) > 63 || label[0] == '-' || label[len(label)-1] == '-' {
-				return fmt.Errorf("invalid DNS name %q", name)
-			}
 		}
 	}
 	for _, s := range p.IPs {
@@ -65,6 +60,18 @@ func (p Profile) validate() error {
 		}
 	}
 	return nil
+}
+
+func validDNSName(name string) bool {
+	if !peer.ValidEndpoint(net.JoinHostPort(name, "443")) || strings.Contains(name, ":") || net.ParseIP(name) != nil {
+		return false
+	}
+	for _, label := range strings.Split(name, ".") {
+		if len(label) == 0 || len(label) > 63 || label[0] == '-' || label[len(label)-1] == '-' {
+			return false
+		}
+	}
+	return true
 }
 
 type registration struct {

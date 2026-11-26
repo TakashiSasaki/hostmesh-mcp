@@ -7,26 +7,41 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/TakashiSasaki/hostmesh-mcp/internal/authority"
 )
 
 func runCA(ctx context.Context, args []string) error {
-	const usage = "usage: hostmesh-mcp ca {serve|init|enroll|revoke|config check} -config <ca.json> (template: hostmesh-mcp ca config example)"
+	const usage = "usage: hostmesh-mcp ca bootstrap -dir <new-directory> -server-name <DNS-or-IP> | ca {serve|init|enroll|revoke|config check} -config <ca.json> (template: hostmesh-mcp ca config example)"
 	if len(args) == 0 {
 		return errors.New(usage)
 	}
 	command := args[0]
+	if command == "bootstrap" {
+		fs := flag.NewFlagSet("ca bootstrap", flag.ContinueOnError)
+		dir := fs.String("dir", "", "new directory for offline and online CA files")
+		name := fs.String("server-name", "", "DNS name or IP address in the peers' EST renewal URL")
+		if err := fs.Parse(args[1:]); err != nil {
+			if errors.Is(err, flag.ErrHelp) {
+				return nil
+			}
+			return err
+		}
+		if *dir == "" || *name == "" || fs.NArg() != 0 {
+			return errors.New(usage)
+		}
+		if err := authority.Bootstrap(*dir, *name); err != nil {
+			return err
+		}
+		fmt.Printf("CA config: %s\nOffline root key: %s\n", filepath.Join(*dir, "online", "ca.json"), filepath.Join(*dir, "offline", "root.key"))
+		return nil
+	}
 	if command == "config" {
 		if len(args) == 2 && args[1] == "example" {
 			encoder := json.NewEncoder(os.Stdout)
 			encoder.SetIndent("", "  ")
-			return encoder.Encode(authority.Config{
-				Listen: "127.0.0.1:9443", Roots: "root.pem",
-				IssuerCert: "issuer.pem", IssuerKey: "issuer.key",
-				ServerCert: "est-chain.pem", ServerKey: "est.key",
-				StateDir: "state", Lifetime: "720h",
-			})
+			return encoder.Encode(authority.ExampleConfig())
 		}
 		if len(args) < 2 || args[1] != "check" {
 			return errors.New(usage)

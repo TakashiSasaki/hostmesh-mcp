@@ -30,6 +30,15 @@ type Config struct {
 	Lifetime   string `json:"lifetime"`
 }
 
+func ExampleConfig() Config {
+	return Config{
+		Listen: "127.0.0.1:9443", Roots: "root.pem",
+		IssuerCert: "issuer.pem", IssuerKey: "issuer.key",
+		ServerCert: "est-chain.pem", ServerKey: "est.key",
+		StateDir: "state", Lifetime: "720h",
+	}
+}
+
 func readJSON(path string, dst any) error {
 	f, err := os.Open(path)
 	if err != nil {
