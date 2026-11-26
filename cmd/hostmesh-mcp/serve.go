@@ -367,25 +367,25 @@ func defaultStateDir() (string, error) {
 	return stateDirUnder(root)
 }
 
-// Keep the existing ledger in place across upgrades and rollbacks. Checking the
-// ledger (rather than just the parent directory) also handles pre-created paths.
 func stateDirUnder(root string) (string, error) {
 	current := filepath.Join(root, product.Name, "state")
+	if _, err := os.Stat(filepath.Join(current, "state.json")); err == nil {
+		return current, nil
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return "", err
+	}
+
+	// A previous peer may hold its lock before writing its first ledger.
+	// Starting fresh here would silently give that installation a second ledger.
 	old := filepath.Join(root, product.LegacyName, "state")
-	for _, dir := range []string{current, old} {
-		_, err := os.Stat(filepath.Join(dir, "state.json"))
+	for _, name := range []string{"state.json", "state.lock"} {
+		_, err := os.Stat(filepath.Join(old, name))
 		if err == nil {
-			return dir, nil
+			return "", fmt.Errorf("previous default state found in %q: stop processes using it and move its state files to %q before starting", old, current)
 		}
 		if !errors.Is(err, os.ErrNotExist) {
 			return "", err
 		}
-	}
-	// The previous process may still be creating its first ledger.
-	if _, err := os.Stat(filepath.Join(old, "state.lock")); err == nil {
-		return old, nil
-	} else if !errors.Is(err, os.ErrNotExist) {
-		return "", err
 	}
 	return current, nil
 }

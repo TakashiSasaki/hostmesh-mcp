@@ -26,7 +26,7 @@ go build -o hostmesh-mcp ./cmd/hostmesh-mcp
 ./hostmesh-mcp stdio
 ```
 
-MCP クライアントのコマンド設定では、実行ファイルへの絶対パスと引数 `stdio` を指定する。既定の状態ディレクトリは `os.UserConfigDir()` 配下の `hostmesh-mcp/state`。同じマシンで複数ノードを動かすときは、ノードごとに `-state-dir` または設定の `state_dir` を指定する。
+MCP クライアントのコマンド設定では、実行ファイルへの絶対パスと引数 `stdio` を指定する。`state.json` と `state.lock` の既定の保存先は、OS のユーザー設定ディレクトリ配下の `hostmesh-mcp/state`。同じマシンで複数ノードを動かすときは、ノードごとに `stdio -state-dir` またはピア設定の `state_dir` を指定する。[OS 別のパスと既存台帳の移行方法](INSTALL.md#既存環境からの更新)
 
 ## ピア設定のひな型を出力する
 
