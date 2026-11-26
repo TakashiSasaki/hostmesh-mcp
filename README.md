@@ -128,6 +128,18 @@ Linux 版 0.0.30 以降は、更新設定の `"source": "github"` で公式 GitH
 
 ## ピア間の mTLS
 
+**初回登録から 2 台をつなぐ場合**は、先に 1 つの CA を用意し、A と B に別々のノード ID と証明書を発行する。各ピアで秘密鍵と CSR を生成し、CA ホストで CSR を検査・承認する。手動 CLI と管理 MCP は同じ CA を使える。[CA の新設](CA.md#新しい-ca-を一括生成する)・[CLI の初回登録](CA.md#ノードを登録する)・[管理 MCP の初回登録](ADMIN.md#登録と設定の受け渡し)
+
+1. 待受側 A の証明書には、B が A に接続する際の DNS 名または IP アドレスを登録する。A を起動してピア用の待受ポートとノード ID を控える。別ホスト間では B から到達できるアドレスを使う。
+2. B の発行プロファイルの `seeds` に A のピア用 `host:port` を入れる。B のピア設定では `peer.seeds` を省略して起動する。B の監視用 MCP で `server_config({})` を呼び、`peer.security` が `mtls`、`peer.seed_source` が `certificate`、`peer.seeds` が A のピア用アドレスであることを確認する。[設定でシードを指定する場合の優先順](#参加ノードの証明書にシードを含める)
+3. A と B それぞれの監視用 MCP で `host_list({})` を呼び、相手の ID が `is_local: false`、`connection_state: "connected"` になるのを確認する。次の引数で `host_status` を呼ぶ。A からは B の ID、B からは A の ID を指定する。
+
+   ```json
+   {"target":{"node_id":"相手のノード ID"},"sections":["system","memory"]}
+   ```
+
+   応答の `node.node_id` が相手の ID、`route.kind` が `direct` なら、直結した相手から取得できている。同じマシン上の 2 プロセスでもこの方法で照会先を確かめられる。監視用 HTTP の URL とピア用の待受ポートは起動時に別々に表示される。[curl による監視照会の例](OPERATIONS.md#curl-で監視用-mcp-を照会する)
+
 ピアの通信方式は `serve` の起動時に決まる。`peer.ca_file`、`peer.cert_file`、`peer.key_file` をすべて省略すると平文、3 点をすべて指定すると mTLS で起動する。一部だけ指定した場合や、証明書・鍵の読み込みや検証に失敗した場合は起動エラーになる。既存の `peer.security` 設定は省略できる。指定する場合は証明書の構成と一致する値（`plaintext` または `mtls`）を使う。
 
 待ち受けと発信には同じ方式を使う。異なる方式のシードを指定してもハンドシェイクで終了し、その相手とは台帳の交換も状態照会の中継も行わない。mTLS では TLS 1.3 で相互認証し、ノード ID と台帳レコードの署名を検証する。MCP クライアントは stdio またはループバック HTTP で接続する。

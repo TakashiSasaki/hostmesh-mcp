@@ -85,6 +85,8 @@ hostmesh-mcp admin -peer-config /etc/hostmesh-mcp/peer.json call config_check '{
 4. **参加ピア**で `peer_install_certificate` に元の鍵のパス、公開証明書用の新規ディレクトリ、受け取った2つの PEM を渡す。鍵との対応・チェーンを検証して `ca_file`・`cert_file`・`key_file` の絶対パスを返す。これを `peer_config_example` の `config.peer` に設定する。
 5. `config_save` に `kind: "peer"` と編集した設定オブジェクトを渡し、`config_check` する。既存設定の変更には `config_read` の `sha256` を `expected_sha256` に指定する。競合したら再読込して、現在の設定に意図した変更を適用する。
 
+証明書から初期接続先を取得する場合、CA 側では `ca_enroll` の `profile.seeds` に待受ピアのアドレスを設定する。参加側では `peer_config_example({"join":true,"mtls":true})` の結果から `config.peer.seeds` **項目そのものを削除**して保存する。ひな型の値を残すと設定が優先され、空配列を指定するとシードへの発信が無効になる。`peer_start` の後、`details.mcp_url` の監視用 `server_config` で `peer.seed_source: "certificate"` を確認する。[相手のノード ID を指定した状態照会](README.md#ピア間の-mtls)
+
 CLI では公開 PEM やハッシュを手で転記せず、JSON のフィールドを渡せる。以下は `jq` を使う例。CA 側で承認済み入力を `approved.json` として用意する。参加ピアへは公開結果の `issued.json` を渡す。
 
 ```sh

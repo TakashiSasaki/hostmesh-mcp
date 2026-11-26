@@ -62,6 +62,8 @@ mcp_post '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"host_s
 
 ## CA の新設・登録・失効
 
+同じホストで mTLS ピアを試運転する場合、待受側 A の登録プロファイルに `"ip_addresses":["127.0.0.1"]` を入れます。上の `:0` の設定例の `peer` に A の `ca_file`、`cert_file`、`key_file` を追加し、固定の `advertise` は省いて起動します。参加側 B の証明書に記載するシードは、A の起動ログの `peer listening on` に表示された実際の `127.0.0.1:ポート番号` です。運用時に証明書へシードを記録する場合は、再起動後も B から到達できる固定のピア用アドレスを使います。[両方向から mTLS 接続を確認する手順](README.md#ピア間の-mtls)
+
 | 操作するホスト | 作業 |
 | --- | --- |
 | CA ホスト | 初回は `ca bootstrap` で鍵・証明書・台帳を作り、`ca config check` で検査します。証明書更新を受け付けるには `ca serve` を起動します。同じホストで監視 HTTP も提供する場合は、通常ピアの `serve` を別プロセスで起動します。[CA の新設と起動](CA.md#新しい-ca-を一括生成する) |
