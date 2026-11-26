@@ -9,6 +9,8 @@ import (
 var helpTopics = map[string]string{
 	"": `hostmesh-mcp — monitor hosts through MCP and connect peers in a mesh.
 
+  admin              Discover and call administration tools from a shell
+  mcp                Start the local administration MCP server over stdio
   stdio, serve       Start a local stdio or network MCP server
   config             Generate or validate peer settings
   peer               Generate a joining peer's key and enrollment request
@@ -17,6 +19,7 @@ var helpTopics = map[string]string{
   version            Print the executable version
 
 Run hostmesh-mcp help <command> for syntax.
+For administration workflows run hostmesh-mcp help administration.
 For first-time certificate enrollment, run hostmesh-mcp help enrollment.`,
 	"enrollment": `First enrollment (local CLI operations; ca serve does not need to be running)
    For a newly created CA, ca.json below means <bootstrap-directory>/online/ca.json.
@@ -36,7 +39,9 @@ For first-time certificate enrollment, run hostmesh-mcp help enrollment.`,
 4. Issue on the CA host, substituting the independently approved digest:
    hostmesh-mcp ca enroll -config ca.json -profile profile.json -csr received.csr -expect-csr-sha256 <approved-digest> -out node-issued.pem -json
 5. Return node-issued.pem and the public root.pem to the peer. Configure
-   peer.cert_file, peer.ca_file and peer.key_file (the original node.key).`,
+   peer.cert_file, peer.ca_file and peer.key_file (the original node.key).
+   Use absolute paths: peer paths resolve from the process working directory.
+   hostmesh-mcp config check -config peer.json verifies the chain and key.`,
 	"peer":     "hostmesh-mcp peer csr -dir <new-directory>\nSee hostmesh-mcp help enrollment for the complete workflow.",
 	"peer csr": "hostmesh-mcp peer csr -dir <new-directory>\nCreates node.key and node.csr on the joining peer. Send node.csr to the CA operator. Keep node.key local. See hostmesh-mcp help enrollment.",
 	"ca": `hostmesh-mcp ca <command>
@@ -77,7 +82,48 @@ See hostmesh-mcp help enrollment for the profile format and an example.`,
 	"update":            "hostmesh-mcp update {check|apply} -config <updater.json> (Linux)",
 	"update check":      "hostmesh-mcp update check -config <updater.json>\nCheck for a Linux peer update.",
 	"update apply":      "hostmesh-mcp update apply -config <updater.json>\nApply a Linux systemd peer update. In supervise mode send SIGUSR1 to the supervisor.",
-	"version":           "hostmesh-mcp version\nPrint the executable version.",
+	"admin": `hostmesh-mcp admin [-peer-config path] [-ca-config path] [-update-config path] list | describe <tool> | call <tool> [JSON|-]
+List tools first, then describe one for its required inputs. Pass - to read a JSON object from stdin.
+Examples: hostmesh-mcp admin describe ca_enroll
+          hostmesh-mcp admin call admin_info
+          hostmesh-mcp admin call config_check '{"kind":"peer"}'
+Long-running services use the native serve, ca serve and supervise commands. See help administration.`,
+	"administration": `Local hostmesh administration
+Discover: CLI: hostmesh-mcp admin list / admin describe <tool>. MCP: tools/list.
+Read admin_info for the version, OS and bound paths. Supply -peer-config, -ca-config
+and -update-config at startup (CLI: before list/describe/call). Use separate config files.
+1. New CA only: ca_bootstrap creates the default mesh-ca/online/ca.json and registry.
+2. Joining peer: peer_csr returns the public CSR, its digest and the local key path.
+3. CA operator: ca_inspect_csr with lookup_registry=true verifies the request.
+   An unregistered key has no node_id. Decline by stopping. To approve, ca_enroll
+   requires the owner's independently confirmed CSR digest and a profile with a
+   unique UUID v4. Return certificate_pem and ca_pem to the joining peer.
+4. Joining peer: peer_install_certificate verifies the chain with the original key.
+   Copy the three returned absolute paths into peer_config_example's peer object.
+   mcp_listen is the separate TOP-LEVEL monitoring HTTP listener (default 127.0.0.1:8787).
+   For tests use mcp_listen="127.0.0.1:0" and a unique state_dir. The peer listener
+   is peer.listen. Omit fixed peer.advertise entries for a loopback-only test.
+   Peer mTLS protects mesh traffic. The monitoring URL uses loopback HTTP.
+   peer_start returns both the allocated MCP URL and peer address.
+   Peer paths resolve from the process working directory. CA paths use ca.json's directory.
+5. Edit the template then config_save with kind=peer and config=<edited object>.
+   To edit an existing file first config_read and pass its sha256 as expected_sha256.
+   config_check validates credentials and settings. CLI example:
+   hostmesh-mcp admin call config_check '{"kind":"peer"}'
+6. MCP: peer_start or ca_start, service_status, then service_stop. These services
+   stop when the administration session exits. CLI: serve or ca serve -config <path>
+   runs in the foreground until stopped. For an existing Linux systemd unit bind
+   -peer-unit or -ca-unit at startup, then use unit_start/status/stop/restart.
+7. Linux updates: update_check / update_apply for systemd. For a supervised peer
+   use supervisor_start and supervisor_update (CLI: supervise and SIGUSR1).
+8. Lost or compromised key: ca_revoke an issued certificate, then ca_inspect_csr
+   with lookup_registry=true to confirm revoked. For replacement generate a new key.
+For shell automation, pass - to admin call and pipe JSON on stdin. Save the complete
+ca_enroll response as JSON to transfer its PEM strings without hand-copying them.
+For a Linux updater template, call update_config_example.
+For native CLI enrollment commands and a profile example: hostmesh-mcp help enrollment.`,
+	"mcp":     "hostmesh-mcp mcp [-peer-config peer.json] [-ca-config mesh-ca/online/ca.json] [-update-config updater.json]\nLinux options: -peer-unit <name.service>, -ca-unit <name.service>, -user-units.\nLocal administrator tools over stdio. Paths are fixed at launch. Services started here stop when this session closes.",
+	"version": "hostmesh-mcp version\nPrint the executable version.",
 }
 
 func commandHelp(args []string) (bool, error) {

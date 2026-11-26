@@ -158,6 +158,11 @@ func (a *Authority) Check() error {
 }
 
 func (a *Authority) Serve(ctx context.Context, log io.Writer) error {
+	return a.ServeReady(ctx, log, func(string) {})
+}
+
+// ServeReady calls ready after the EST listener is bound.
+func (a *Authority) ServeReady(ctx context.Context, log io.Writer, ready func(string)) error {
 	if err := withRegistry(a.config.StateDir, false, a.checkRegistry); err != nil {
 		return err
 	}
@@ -181,6 +186,7 @@ func (a *Authority) Serve(ctx context.Context, log io.Writer) error {
 	fmt.Fprintln(log, "CA listening on", l.Addr())
 	done := make(chan error, 1)
 	go func() { done <- srv.Serve(tls.NewListener(l, cfg)) }()
+	ready(l.Addr().String())
 	select {
 	case err := <-done:
 		return err

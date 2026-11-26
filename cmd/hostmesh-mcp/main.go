@@ -38,6 +38,9 @@ func run(ctx context.Context, args []string) error {
 		fmt.Println(version)
 		return nil
 	}
+	if len(args) > 0 && (args[0] == "mcp" || args[0] == "admin") {
+		return runAdmin(ctx, version, args[0], args[1:])
+	}
 	if len(args) > 0 && args[0] == "peer" {
 		return runPeer(args[1:])
 	}

@@ -207,8 +207,12 @@ func (c *config) preparePeering() (*peer.PeerTLS, error) {
 var errCertificateRenewed = errors.New("certificate renewed")
 
 func serve(ctx context.Context, version string, c config, security *peer.PeerTLS) error {
+	return serveReady(ctx, version, c, security, func(string, string, string) {})
+}
+
+func serveReady(ctx context.Context, version string, c config, security *peer.PeerTLS, ready func(nodeID, mcpURL, peerListen string)) error {
 	for {
-		err := serveGeneration(ctx, version, &c, security)
+		err := serveGeneration(ctx, version, &c, security, ready)
 		if !errors.Is(err, errCertificateRenewed) || ctx.Err() != nil {
 			return err
 		}
@@ -222,7 +226,7 @@ func serve(ctx context.Context, version string, c config, security *peer.PeerTLS
 	}
 }
 
-func serveGeneration(ctx context.Context, version string, c *config, security *peer.PeerTLS) error {
+func serveGeneration(ctx context.Context, version string, c *config, security *peer.PeerTLS, ready func(nodeID, mcpURL, peerListen string)) error {
 	if c.StateDir == "" {
 		var err error
 		c.StateDir, err = defaultStateDir()
@@ -294,6 +298,7 @@ func serveGeneration(ctx context.Context, version string, c *config, security *p
 		fmt.Fprintln(os.Stderr, "peer listening on", peerListener.Addr())
 	}
 	if mcpListener == nil {
+		ready(dir.Self().ID, "", c.Peer.Listen)
 		select {
 		case <-ctx.Done():
 			return nil
@@ -330,6 +335,7 @@ func serveGeneration(ctx context.Context, version string, c *config, security *p
 	fmt.Fprintf(os.Stderr, "MCP listening on http://%s/mcp\n", mcpListener.Addr())
 	done := make(chan error, 1)
 	go func() { done <- server.Serve(mcpListener) }()
+	ready(dir.Self().ID, "http://"+mcpListener.Addr().String()+"/mcp", c.Peer.Listen)
 	select {
 	case err := <-done:
 		if !errors.Is(err, http.ErrServerClosed) {

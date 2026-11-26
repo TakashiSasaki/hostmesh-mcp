@@ -31,11 +31,18 @@ func runPeer(args []string) error {
 	if *dir == "" || flags.NArg() != 0 {
 		return errors.New(usage)
 	}
-	if err := localfile.PopulatePrivateDir(*dir, func() error { return writePeerCSR(*dir) }); err != nil {
+	if err := createPeerCSR(*dir); err != nil {
 		return err
 	}
 	fmt.Printf("Send this CSR to the CA administrator: %s\nKeep this private key on the peer: %s\n", filepath.Join(*dir, "node.csr"), filepath.Join(*dir, "node.key"))
 	return nil
+}
+
+func createPeerCSR(dir string) error {
+	if dir == "" {
+		return errors.New("new credentials directory is required")
+	}
+	return localfile.PopulatePrivateDir(dir, func() error { return writePeerCSR(dir) })
 }
 
 func writePeerCSR(dir string) error {

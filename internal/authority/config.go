@@ -83,6 +83,7 @@ func ReadConfig(path string) (Config, error) {
 }
 
 type Authority struct {
+	rootsPEM string
 	config   Config
 	roots    *x509.CertPool
 	signer   tls.Certificate
@@ -91,6 +92,9 @@ type Authority struct {
 	reserved map[string]bool
 	serverID string
 }
+
+// PublicRoots returns only the public certificates verified when the CA was loaded.
+func (a *Authority) PublicRoots() string { return a.rootsPEM }
 
 func loadPair(cert, key string) (tls.Certificate, error) {
 	pair, err := tls.LoadX509KeyPair(cert, key)
@@ -113,6 +117,7 @@ func Load(c Config) (*Authority, error) {
 	if err != nil {
 		return nil, err
 	}
+	var rootsPEM bytes.Buffer
 	roots := x509.NewCertPool()
 	pair, err := loadPair(c.IssuerCert, c.IssuerKey)
 	if err != nil {
@@ -141,6 +146,9 @@ func Load(c Config) (*Authority, error) {
 			return nil, errors.New("use an intermediate signer distinct from the trusted root keys")
 		}
 		roots.AddCert(root)
+		if err := pem.Encode(&rootsPEM, &pem.Block{Type: "CERTIFICATE", Bytes: root.Raw}); err != nil {
+			return nil, err
+		}
 		b = rest
 	}
 	if !pair.Leaf.IsCA || pair.Leaf.KeyUsage&x509.KeyUsageCertSign == 0 {
@@ -177,7 +185,7 @@ func Load(c Config) (*Authority, error) {
 		return nil, errors.New("EST server must use a dedicated key")
 	}
 	reserved[serverID] = true
-	return &Authority{config: c, roots: roots, signer: pair, chain: chains[0], lifetime: lifetime, reserved: reserved, serverID: serverID}, nil
+	return &Authority{config: c, rootsPEM: rootsPEM.String(), roots: roots, signer: pair, chain: chains[0], lifetime: lifetime, reserved: reserved, serverID: serverID}, nil
 }
 
 func verifyPair(pair tls.Certificate, roots *x509.CertPool, usage x509.ExtKeyUsage) ([][]*x509.Certificate, error) {

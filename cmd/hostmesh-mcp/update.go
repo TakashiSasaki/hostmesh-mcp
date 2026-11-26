@@ -36,13 +36,17 @@ func runUpdate(ctx context.Context, args []string) error {
 	if *configPath == "" || fs.NArg() != 0 {
 		return errors.New(usage)
 	}
-	c, err := readUpdateSettings(*configPath)
+	return performUpdate(ctx, *configPath, args[0] == "check", os.Stdout)
+}
+
+func performUpdate(ctx context.Context, path string, check bool, out io.Writer) error {
+	c, err := readUpdateSettings(path)
 	if err != nil {
 		return err
 	}
 	manager := updateTarget{Unit: c.Unit, User: c.UserService}
 	pending := c.Binary + ".update-pending"
-	if args[0] == "apply" {
+	if !check {
 		if c.PeerConfig != "" {
 			return errors.New("supervised peer: send SIGUSR1 to the supervisor to apply an update")
 		}
@@ -56,23 +60,23 @@ func runUpdate(ctx context.Context, args []string) error {
 		}
 	}
 	if _, err := os.Lstat(pending); err == nil {
-		if args[0] == "check" {
+		if check {
 			return errors.New("unfinished update: restart supervise or run systemd update apply with the original settings")
 		}
 		if err := restoreUpdate(ctx, c, pending, manager); err != nil {
 			return fmt.Errorf("recover interrupted update: %w", err)
 		}
-		fmt.Println("Recovered previous service; retry apply to check for a release")
+		fmt.Fprintln(out, "Recovered previous service; retry apply to check for a release")
 		return nil
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return err
 	}
 
-	return updatePeer(ctx, ctx, c, manager, args[0] == "check")
+	return updatePeer(ctx, ctx, c, manager, check, out)
 }
 
 // Preparation may be cancelled independently if the monitored child exits.
-func updatePeer(ctx, prep context.Context, c updateSettings, manager peerController, checkOnly bool) error {
+func updatePeer(ctx, prep context.Context, c updateSettings, manager peerController, checkOnly bool, out io.Writer) error {
 	info, err := os.Lstat(c.Binary)
 	if err != nil {
 		return err
@@ -92,11 +96,11 @@ func updatePeer(ctx, prep context.Context, c updateSettings, manager peerControl
 	if err != nil {
 		return err
 	}
-	fmt.Printf("Installed %s, published %s\n", current, version)
+	fmt.Fprintf(out, "Installed %s, published %s\n", current, version)
 	if !newer || checkOnly {
 		return nil
 	}
-	return applyRelease(ctx, prep, c, manager, c.Binary+".update-pending", current, version, artifact, info.Mode().Perm())
+	return applyRelease(ctx, prep, c, manager, c.Binary+".update-pending", current, version, artifact, info.Mode().Perm(), out)
 }
 
 func lockUpdateFile(path string, flags int) (*os.File, error) {
@@ -149,7 +153,7 @@ func copyLedger(src, dst string) error {
 	return syncDir(filepath.Dir(dst))
 }
 
-func applyRelease(ctx, prep context.Context, c updateSettings, manager peerController, pending, current, version string, a releaseArtifact, mode os.FileMode) error {
+func applyRelease(ctx, prep context.Context, c updateSettings, manager peerController, pending, current, version string, a releaseArtifact, mode os.FileMode, out io.Writer) error {
 	parent := filepath.Dir(c.Binary)
 	stage := pending + ".stage"
 	if err := os.Mkdir(stage, 0700); err != nil {
@@ -215,7 +219,7 @@ func applyRelease(ctx, prep context.Context, c updateSettings, manager peerContr
 	if err := finishUpdate(pending); err != nil {
 		return err
 	}
-	fmt.Printf("Updated to %s; verified node %s\n", version, target.NodeID)
+	fmt.Fprintf(out, "Updated to %s; verified node %s\n", version, target.NodeID)
 	return nil
 }
 

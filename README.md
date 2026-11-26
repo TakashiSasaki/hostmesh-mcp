@@ -8,6 +8,10 @@ Windows 版は Windows ホスト上で動く読み取り専用の `hostmesh-mcp.
 
 [インストールガイド（Linux・macOS・Windows）](INSTALL.md)
 
+## エージェントから管理する
+
+管理用 STDIO MCP は `hostmesh-mcp mcp` で起動し、最初に `admin_help` を呼ぶ。CLI では `hostmesh-mcp help administration` と `hostmesh-mcp admin list` から同じ業務を探せる。ピアと CA の初回準備、証明書、設定編集、サービスの運転、Linux の更新に対応する。[管理クライアントの設定・操作例](ADMIN.md)
+
 ## CLI で使い方を調べる
 
 `hostmesh-mcp --help` でコマンド一覧、`hostmesh-mcp help ca` で CA の操作一覧を表示する。初回登録を担当するエージェントは **`hostmesh-mcp help enrollment`** から始めると、バイナリ単体で CSR の確認、登録プロファイルの例、承認・見送り、証明書の返却までの手順を確認できる。[CA の運用手順](CA.md#ノードを登録する)

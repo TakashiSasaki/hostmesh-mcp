@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"flag"
+	"io"
 	"log"
 	"os"
 	"os/exec"
@@ -24,6 +25,7 @@ type supervisedChild struct {
 
 // The supervisor event loop owns every child transition, including updates.
 type supervisedPeer struct {
+	output   io.Writer
 	settings updateSettings
 	child    *supervisedChild
 	restored bool // old files restored in this process, possibly awaiting an observer
@@ -45,7 +47,7 @@ func (p *supervisedPeer) start(ctx context.Context, recovering bool) error {
 	c := p.settings
 	cmd := exec.Command(c.Binary, "serve", "-config", c.PeerConfig)
 	cmd.Dir = filepath.Dir(c.PeerConfig)
-	cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
+	cmd.Stdout, cmd.Stderr = p.output, os.Stderr
 	cmd.SysProcAttr = &syscall.SysProcAttr{Pdeathsig: syscall.SIGKILL}
 	if err := cmd.Start(); err != nil {
 		return err
@@ -108,7 +110,14 @@ func runSupervise(ctx context.Context, args []string) error {
 	if *path == "" || fs.NArg() != 0 {
 		return errors.New("usage: hostmesh-mcp supervise -config <updater.json>")
 	}
-	c, err := readUpdateSettings(*path)
+	check := make(chan os.Signal, 1)
+	signal.Notify(check, syscall.SIGUSR1)
+	defer signal.Stop(check)
+	return superviseReady(ctx, *path, check, os.Stdout, func() {})
+}
+
+func superviseReady(ctx context.Context, path string, check <-chan os.Signal, out io.Writer, ready func()) error {
+	c, err := readUpdateSettings(path)
 	if err != nil {
 		return err
 	}
@@ -131,13 +140,11 @@ func runSupervise(ctx context.Context, args []string) error {
 	if !binary.Mode().IsRegular() || os.SameFile(binary, self) {
 		return errors.New("binary must be a separate regular file from the supervisor executable")
 	}
-	check := make(chan os.Signal, 1)
-	signal.Notify(check, syscall.SIGUSR1)
-	defer signal.Stop(check)
 	// Linux sends Pdeathsig when the thread that forked the child exits.
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
-	p := supervisedPeer{settings: c}
+	p := supervisedPeer{settings: c, output: out}
+	ready()
 	err = p.monitor(ctx, check)
 	return errors.Join(err, p.stop(context.Background()))
 }
@@ -248,7 +255,7 @@ func (p *supervisedPeer) check(ctx context.Context, child *supervisedChild) {
 		case <-prep.Done():
 		}
 	}()
-	if err := updatePeer(ctx, prep, p.settings, p, false); err != nil && ctx.Err() == nil {
+	if err := updatePeer(ctx, prep, p.settings, p, false, p.output); err != nil && ctx.Err() == nil {
 		log.Printf("Update: %v", err)
 	}
 }

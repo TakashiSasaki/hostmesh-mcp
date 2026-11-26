@@ -26,20 +26,24 @@ func configExample(args []string, out io.Writer) error {
 		return fmt.Errorf("unexpected argument %q (see hostmesh-mcp config example -help)", flags.Arg(0))
 	}
 
+	encoder := json.NewEncoder(out)
+	encoder.SetIndent("", "  ")
+	return encoder.Encode(peerExample(*join, *mtls))
+}
+
+func peerExample(join, mtls bool) map[string]any {
 	const endpoint = "127.0.0.1:7443"
 	var peer peerConfig
-	if *join {
+	if join {
 		peer.Seeds = []string{endpoint}
 	} else {
 		peer.Listen = endpoint
 		peer.Advertise = []string{endpoint}
 	}
-	if *mtls {
+	if mtls {
 		peer.CAFile = "/etc/host-status-mcp/ca.pem"
 		peer.CertFile = "/etc/host-status-mcp/node.pem"
 		peer.KeyFile = "/etc/host-status-mcp/node.key"
 	}
-	encoder := json.NewEncoder(out)
-	encoder.SetIndent("", "  ")
-	return encoder.Encode(map[string]peerConfig{"peer": peer})
+	return map[string]any{"mcp_listen": "127.0.0.1:8787", "peer": peer}
 }
