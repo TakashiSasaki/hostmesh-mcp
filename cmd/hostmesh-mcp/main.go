@@ -35,6 +35,9 @@ func run(ctx context.Context, args []string) error {
 		fmt.Println(version)
 		return nil
 	}
+	if len(args) > 0 && args[0] == "peer" {
+		return runPeer(args[1:])
+	}
 	if len(args) > 0 && args[0] == "ca" {
 		return runCA(ctx, args[1:])
 	}
@@ -59,7 +62,7 @@ func run(ctx context.Context, args []string) error {
 		return runConfigured(ctx, version, "serve", args[1:])
 	}
 	if len(args) == 0 || args[0] != "stdio" {
-		return fmt.Errorf("usage: hostmesh-mcp version | ca {bootstrap|serve|init|enroll|revoke|config} | update {check|apply} -config <path> | supervise -config <updater.json> | stdio [-state-dir directory] | serve -config <path> | config example [-join] [-mtls] | config check -config <path>")
+		return fmt.Errorf("usage: hostmesh-mcp version | peer csr -dir <new-directory> | ca {bootstrap|serve|init|enroll|revoke|config} | update {check|apply} -config <path> | supervise -config <updater.json> | stdio [-state-dir directory] | serve -config <path> | config example [-join] [-mtls] | config check -config <path>")
 	}
 	flags := flag.NewFlagSet("stdio", flag.ContinueOnError)
 	dir := flags.String("state-dir", "", "persistent state directory")

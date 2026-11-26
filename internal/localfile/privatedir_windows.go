@@ -1,4 +1,4 @@
-package authority
+package localfile
 
 import (
 	"os"

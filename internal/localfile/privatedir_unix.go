@@ -1,6 +1,6 @@
 //go:build unix
 
-package authority
+package localfile
 
 import "os"
 

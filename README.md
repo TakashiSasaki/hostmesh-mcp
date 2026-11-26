@@ -170,7 +170,7 @@ mTLS ピアに初回の証明書を登録した後、次の設定を各ノード
 
 B や C 自身の証明書も更新する場合は同じオブジェクトに `url` を追加する。状態照会の `peer.relay` と証明書更新の中継は個別に設定する。経路上の各ピアには 0.0.19 以降が必要。更新設定を省略したピアは従来どおり動く。
 
-新規の発行局は `hostmesh-mcp ca bootstrap -dir mesh-ca -server-name ca.example.internal` でルート CA・中間 CA・更新サーバー証明書・初期台帳を一括生成し、`hostmesh-mcp ca serve -config mesh-ca/online/ca.json` で起動できる。発行用ホストでは別プロセスの通常ピアがメッシュからの更新要求を中継する。ひな型は `hostmesh-mcp ca config example` で取得できる。[中間 CA の準備・初回登録・失効手順](CA.md)
+新規の発行局は `hostmesh-mcp ca bootstrap -dir mesh-ca -server-name ca.example.internal` でルート CA・中間 CA・更新サーバー証明書・初期台帳を一括生成し、`hostmesh-mcp ca serve -config mesh-ca/online/ca.json` で起動できる。参加するピアでは `hostmesh-mcp peer csr -dir mesh-peer` で初回登録用の秘密鍵と CSR を生成し、`mesh-peer/node.csr` を管理者に渡す。発行用ホストでは別プロセスの通常ピアがメッシュからの更新要求を中継する。ひな型は `hostmesh-mcp ca config example` で取得できる。[中間 CA の準備・初回登録・失効手順](CA.md)
 
 CA 側には、既存のクライアント証明書を mTLS で認証し、失効済みの資格での再発行を拒否する EST の `simplereenroll` 窓口を用意する。CA は CSR の署名、鍵の一致、ノードの参加許可を確認し、そのノードの URI SAN、必要な名前・用途、証明書内のシードを含む新しい証明書を返す。EST サーバー自体には URL のホスト名に有効な専用のサーバー証明書を発行し、更新元の `ca_file` から検証できるようにする。CA 署名鍵は発行側にだけ置く。[EST の再登録](https://www.rfc-editor.org/rfc/rfc7030#section-4.2)・[EST の転送形式](https://www.rfc-editor.org/rfc/rfc8951#section-3)
 

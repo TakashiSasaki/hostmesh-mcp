@@ -13,11 +13,13 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/TakashiSasaki/hostmesh-mcp/internal/localfile"
 )
 
 // Bootstrap creates a deployable online CA and a separate offline root in a
 // new, private directory. Only the invocation that creates the directory owns it.
-func Bootstrap(dir, serverName string) (err error) {
+func Bootstrap(dir, serverName string) error {
 	now := time.Now().UTC()
 	server := &x509.Certificate{
 		Subject:   pkix.Name{CommonName: serverName},
@@ -33,16 +35,12 @@ func Bootstrap(dir, serverName string) (err error) {
 		return fmt.Errorf("invalid EST server DNS name or IP address %q", serverName)
 	}
 
-	if err := makePrivateDir(dir); err != nil {
-		return err
-	}
-	defer func() {
-		if err != nil {
-			if cleanupErr := os.RemoveAll(dir); cleanupErr != nil {
-				err = fmt.Errorf("%w (clean up incomplete CA directory: %v)", err, cleanupErr)
-			}
-		}
-	}()
+	return localfile.PopulatePrivateDir(dir, func() error {
+		return writeBootstrap(dir, now, server)
+	})
+}
+
+func writeBootstrap(dir string, now time.Time, server *x509.Certificate) error {
 	offline, online := filepath.Join(dir, "offline"), filepath.Join(dir, "online")
 	for _, sub := range []string{offline, online} {
 		if err := os.Mkdir(sub, 0700); err != nil {

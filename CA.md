@@ -69,8 +69,15 @@ hostmesh-mcp ca serve -config ca.json
 
 ## ノードを登録する
 
-1. ノード上で秘密鍵を生成して PEM 形式の PKCS#10 CSR を作り、管理者へ渡す。既存ノードを移行する場合は現在の鍵で CSR を作る。
-2. 管理者は所有者・公開鍵を確認し、発行用ホストに次のような `node.json` を用意する。既存ノードには現在の `node_id` を指定する。
+**新しく参加するピア上**で、信頼できる親ディレクトリから次を実行する。CA の証明書や接続情報がまだ手元になくても実行できる。
+
+```sh
+hostmesh-mcp peer csr -dir mesh-peer
+```
+
+`mesh-peer/node.key` がこのピア専用の ECDSA P-256 秘密鍵（PKCS#8 PEM）、`mesh-peer/node.csr` がその鍵で署名した登録用 CSR（PKCS#10 PEM）。秘密鍵はピアに保管し、**管理者に渡すのは `node.csr` だけ**。出力先には新しいディレクトリを指定する。同じパスで再実行すると既存の鍵と CSR は保護される。登録をやり直すときは保管済みの CSR を再送できる。既存ノードの鍵を引き継ぐ移行では、その鍵で作った CSR を使う。
+
+**CA ホスト上**で、管理者が所有者・公開鍵を確認し、承認する内容を `node.json` に記入する。新規ノードには固有の UUID v4 を割り当て、既存ノードには現在の `node_id` を指定する。
 
 ```json
 {
@@ -84,10 +91,10 @@ hostmesh-mcp ca serve -config ca.json
 `node_id` は正規表記の UUID v4。名前、IP、シードは任意。証明書の用途は既定で clientAuth と serverAuth。発信専用ノードには `"client_only": true` を指定できる。CA は CSR で鍵の所持を検証し、発行内容には管理者が登録したプロファイルを使う。
 
 ```sh
-hostmesh-mcp ca enroll -config ca.json -profile node.json -csr node.csr > node-issued.pem
+hostmesh-mcp ca enroll -config mesh-ca/online/ca.json -profile node.json -csr node.csr > node-issued.pem
 ```
 
-コマンドの成功後、ノードに `node-issued.pem` と `root.pem` を渡す。前者を `peer.cert_file`、後者を `peer.ca_file`、そのノード自身の鍵を `peer.key_file` に設定する。その後の EST 更新は mTLS 接続のノード ID、登録済みの公開鍵、CSR の署名と公開鍵を毎回確認する。
+コマンドの成功後、ノードに `node-issued.pem` と `root.pem` を渡す。前者を `peer.cert_file`、後者を `peer.ca_file`、参加ピアに保管した `mesh-peer/node.key` を `peer.key_file` に設定する。その後の EST 更新は mTLS 接続のノード ID、登録済みの公開鍵、CSR の署名と公開鍵を毎回確認する。
 
 ## 失効と再登録
 
