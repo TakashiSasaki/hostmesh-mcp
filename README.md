@@ -8,6 +8,8 @@ Windows 版は Windows ホスト上で動く読み取り専用の `hostmesh-mcp.
 
 [インストールガイド（Linux・macOS・Windows）](INSTALL.md)
 
+Linux ARM64 での常駐メモリの目安は、v0.0.35 の実測で mTLS ピア 1 プロセスが約 22 MiB、CA とピアを同じホストで別々に起動すると合計約 30 MiB。Linux の自動更新用に `supervise` でピアを起動すると親子合計で約 46 MiB。いずれも共有ページを按分した値（PSS）。[構成別の実測値と測定条件](TESTING.md#linux-arm64-の常駐メモリ)
+
 ## エージェントから管理する
 
 管理用 STDIO MCP は `hostmesh-mcp mcp` で起動し、最初に `admin_help` を呼ぶ。CLI では `hostmesh-mcp help administration` と `hostmesh-mcp admin list` から同じ業務を探せる。ピアと CA の初回準備、証明書、設定編集、サービスの運転、Linux の更新に対応する。[管理クライアントの設定・操作例](ADMIN.md)
